@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (c) 2026 MathaiMarvin
+
 """Synthetic calculation fixtures from docs/workflow.md; no agent results."""
 
 import unittest

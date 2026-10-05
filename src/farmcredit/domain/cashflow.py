@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (c) 2026 MathaiMarvin
+
 """Project available KES cash against one proposed seasonal repayment.
 
 Inputs are dated household cash movements, not accounting revenue or expense.
@@ -16,7 +19,7 @@ ZERO = Decimal("0.00")
 CENT = Decimal("0.01")
 
 
-def _validate_money(value: Decimal) -> None:
+def validate_money(value: Decimal) -> None:
     if not isinstance(value, Decimal) or not value.is_finite():
         raise ValueError("Money must be a finite Decimal.")
     try:
@@ -42,7 +45,7 @@ class CashMovement:
             raise ValueError("Source record IDs cannot contain surrounding whitespace.")
         if type(self.on) is not date:
             raise ValueError("Cash movements need a calendar date.")
-        _validate_money(self.amount)
+        validate_money(self.amount)
 
 
 @dataclass(frozen=True)
@@ -81,7 +84,7 @@ def assess_cashflow(
     """
     if type(starts_on) is not date:
         raise ValueError("Assessment needs a calendar start date.")
-    _validate_money(opening_cash)
+    validate_money(opening_cash)
     if opening_cash < ZERO:
         raise ValueError("Opening available cash cannot be negative.")
     if repayment.amount >= ZERO or repayment.on < starts_on:
