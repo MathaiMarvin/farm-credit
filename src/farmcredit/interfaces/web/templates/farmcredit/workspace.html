@@ -1,0 +1,57 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#060f40">
+  <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
+  <title>Household FC-001 · FarmCredit</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{% static 'farmcredit/workspace.css' %}">
+  <script src="{% static 'farmcredit/vendor/htmx.min.js' %}" defer></script>
+  <script src="{% static 'farmcredit/workspace.js' %}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to case</a>
+  <aside class="sidebar" aria-label="Workspace navigation">
+    <a class="brand" href="{% url 'workspace' %}"><span class="brand-mark" aria-hidden="true">f</span>farmcredit<span class="brand-dot">.</span></a>
+    <div class="workspace-name"><span class="avatar" aria-hidden="true">FC</span><div>Demo cooperative<small>Extension workspace</small></div></div>
+    <nav aria-label="Case sections">
+      <a class="selected" href="#main" aria-current="page"><span aria-hidden="true">▤</span> Household case</a>
+      <a href="#records"><span aria-hidden="true">≡</span> Recorded cash flows</a>
+    </nav>
+    <div class="sidebar-foot"><span class="eyebrow">Built for a clearer decision</span><p>Farm records. Visible assumptions. Human judgement.</p><a href="https://github.com/MathaiMarvin/farm-credit">Source code ↗</a></div>
+  </aside>
+  <div class="main-column">
+    <header class="topbar"><span>Workspace <span class="separator">/</span> Household FC-001</span><span class="badge">Synthetic demo</span></header>
+    <main id="main" tabindex="-1">
+      <div class="page-heading"><div><p class="eyebrow">Seasonal input credit</p><h1>A clearer view of repayment.</h1><p class="subtitle">Review the household’s records, then check when cash is available.</p></div><span class="case-id">FC-001</span></div>
+      <div class="notice"><span class="notice-dot" aria-hidden="true"></span><p>All records are synthetic. This calculation is not a credit decision. Changes are not saved.</p></div>
+      <div class="workspace-grid">
+        <div class="case-facts">
+          <section class="card" aria-labelledby="household-heading">
+            <div class="section-heading"><span class="section-number">01</span><div><p class="eyebrow">The household</p><h2 id="household-heading">Farm &amp; seasonal plan</h2></div></div>
+            <dl class="facts-grid"><div><dt>Household</dt><dd>Demo household FC-001</dd></div><div><dt>Location</dt><dd>Trans Nzoia, Kenya</dd></div><div><dt>Crop &amp; area</dt><dd>Maize · 2 acres</dd></div><div><dt>Expected harvest</dt><dd>{{ case.sale.harvest_on|date:"j M Y" }}</dd></div></dl>
+            <div class="harvest-breakdown"><div><strong>{{ case.sale.gross_kg|floatformat:"0g" }} <small>kg</small></strong><span>Expected harvest</span></div><span aria-hidden="true">−</span><div><strong>{{ case.sale.retained_kg|floatformat:"0g" }} <small>kg</small></strong><span>Household retention</span></div><span aria-hidden="true">−</span><div><strong>{{ case.sale.lost_kg|floatformat:"0g" }} <small>kg</small></strong><span>Expected loss</span></div></div>
+            <p class="fine-print">Recorded planning assumptions for a fictional season.</p>
+          </section>
+          <section class="card" aria-labelledby="package-heading">
+            <div class="section-heading"><span class="section-number">02</span><div><p class="eyebrow">The proposal</p><h2 id="package-heading">Input package &amp; repayment</h2></div></div>
+            <dl class="line-items"><div><dt>Inputs paid directly to supplier</dt><dd>KSh {{ case.financing.principal|floatformat:"0g" }}</dd></div><div><dt>Financing charges</dt><dd>KSh {{ case.financing.charges|floatformat:"0g" }}</dd></div><div class="total"><dt>Total due {{ case.financing.repayment_on|date:"j M Y" }}</dt><dd>KSh {{ repayment_amount|floatformat:"0g" }}</dd></div></dl>
+            <p class="fine-print">The package does not enter household cash. Its repayment is counted once.</p>
+          </section>
+          <section class="card" id="records" aria-labelledby="records-heading">
+            <div class="section-heading"><span class="section-number">03</span><div><p class="eyebrow">The starting position</p><h2 id="records-heading">Recorded cash flows</h2></div></div>
+            <dl class="line-items"><div><dt>Opening cash · {{ case.starts_on|date:"j M Y" }}</dt><dd>KSh {{ case.opening_cash|floatformat:"0g" }}</dd></div></dl>
+            <details><summary>Inspect {{ case.other_movements|length }} cash commitments</summary><div class="table-scroll"><table><caption>Amounts leaving household cash</caption><thead><tr><th scope="col">Record</th><th scope="col">Date</th><th scope="col">KSh</th></tr></thead><tbody>{% for movement in cash_records %}<tr><td>{{ movement.record_id }}</td><td>{{ movement.on|date:"j M Y" }}</td><td>{{ movement.amount|floatformat:"2g" }}</td></tr>{% endfor %}</tbody></table></div></details>
+            <p class="fine-print">Other income and obligations are explicitly zero in this demo.</p>
+          </section>
+        </div>
+        <div>{% include 'farmcredit/calculation.html' %}</div>
+      </div>
+      <footer>FarmCredit · Human-reviewed agricultural advisory <a href="https://github.com/MathaiMarvin/farm-credit/blob/main/LICENSE">AGPLv3 licence ↗</a></footer>
+    </main>
+  </div>
+</body>
+</html>

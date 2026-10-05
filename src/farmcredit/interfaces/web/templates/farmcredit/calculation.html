@@ -1,0 +1,28 @@
+<section id="calculation" class="card calculation" aria-labelledby="calculation-heading">
+  <div class="calculation-header"><p class="eyebrow">Cash-flow check</p><h2 id="calculation-heading">Will cash arrive in time?</h2><p>Compare expected sale receipts with the repayment deadline.</p></div>
+  <div class="calculation-body">
+    <form action="{% url 'workspace' %}" method="post" hx-post="{% url 'workspace' %}" hx-target="#calculation" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#busy" novalidate>
+      {% csrf_token %}
+      {% if form.errors %}<div class="form-error" role="alert" tabindex="-1" id="form-errors"><strong>We need a correction before calculating.</strong>{{ form.non_field_errors }}{% for field in form %}{% if field.errors %}<div id="{{ field.auto_id }}_error">{% for error in field.errors %}<p><a href="#{{ field.id_for_label }}">{{ field.label }}: {{ error }}</a></p>{% endfor %}</div>{% endif %}{% endfor %}</div>{% endif %}
+      {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}<p class="help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</p></div>{% endfor %}
+      <p class="date-hint">Repayment is due <strong>{{ case.financing.repayment_on|date:"j F Y" }}</strong>. Try a receipt date after that deadline to inspect the timing gap.</p>
+      <button class="primary" type="submit">Calculate cash position <span aria-hidden="true">→</span></button>
+      <p id="busy" class="htmx-indicator" role="status">Calculating cash position…</p>
+    </form>
+    <p id="request-error" class="form-error" role="alert" hidden>We couldn’t complete the calculation. Check your connection and try again.</p>
+    <p id="stale-result" class="date-hint" role="status" hidden>Inputs changed. Calculate again to see the updated result.</p>
+    <div id="result" aria-live="polite" aria-atomic="true">
+    {% if result %}
+      <div class="result-panel {% if result.shortfalls %}has-shortfall{% endif %}" tabindex="-1" id="result-summary">
+        <p class="eyebrow">Calculation result</p>
+        {% if shortfall_amount %}<h3>Repayment timing shortfall</h3><p>Cash falls short by <strong>KSh {{ shortfall_amount|floatformat:"2g" }}</strong> on {{ case.financing.repayment_on|date:"j M Y" }}.</p>{% elif result.shortfalls %}<h3>Earlier cash shortfall</h3><p>A later surplus does not cover obligations due before money arrives.</p>{% else %}<h3>No shortfall in this scenario</h3><p>The stated cash flows cover the repayment when it is due.</p>{% endif %}
+        <dl class="line-items"><div><dt>Available before repayment</dt><dd>KSh {{ result.cash_before_repayment|floatformat:"2g" }}</dd></div><div><dt>Proposed repayment</dt><dd>KSh {{ repayment_amount|floatformat:"2g" }}</dd></div><div class="total"><dt>After obligations due</dt><dd>KSh {{ result.cash_after_repayment|floatformat:"2g" }}</dd></div></dl>
+        <p class="fine-print">Calculated for receipt on {{ case.sale.received_on|date:"j M Y" }} at KSh {{ case.sale.price_per_kg|floatformat:2 }}/kg. Coverage: {{ result.coverage|floatformat:2 }}×.</p>
+      </div>
+      {% if result.future_movements %}<div class="future-note"><strong>Expected after the deadline</strong>{% for movement in result.future_movements %}<p>KSh {{ movement.amount|floatformat:"2g" }} on {{ movement.on|date:"j M Y" }} is excluded from cash available for this repayment.</p>{% endfor %}</div>{% endif %}
+      <details><summary>Inspect dated cash balances</summary><div class="table-scroll"><table><caption>Projected cash; negative amounts mean unmet obligations.</caption><thead><tr><th scope="col">Date</th><th scope="col">Balance (KSh)</th></tr></thead><tbody>{% for balance in result.balances %}<tr><td>{{ balance.on|date:"j M Y" }}</td><td>{{ balance.amount|floatformat:"2g" }}</td></tr>{% endfor %}</tbody></table></div></details>
+      <p class="fine-print">Calculation only. External evidence, stress testing and officer approval are not part of this screen yet.</p>
+    {% elif not form.errors %}<div class="empty-result"><span class="empty-icon" aria-hidden="true">↗</span><h3>Start with the recorded facts.</h3><p>Calculate to see the cash available at repayment and any earlier shortfalls.</p></div>{% endif %}
+    </div>
+  </div>
+</section>

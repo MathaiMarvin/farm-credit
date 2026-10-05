@@ -5,7 +5,7 @@
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from farmcredit.domain.cashflow import CENT, CashMovement, validate_money
 
