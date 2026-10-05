@@ -408,6 +408,17 @@ th:last-child {
 .table-scroll {
   overflow: auto;
 }
+#evidence-details td {
+  overflow-wrap: anywhere;
+  text-align: left;
+  vertical-align: top;
+}
+#evidence-details th:last-child {
+  text-align: left;
+}
+#evidence-details table {
+  table-layout: fixed;
+}
 .calculation {
   padding: 0;
   overflow: hidden;

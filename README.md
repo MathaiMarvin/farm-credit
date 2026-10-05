@@ -62,6 +62,12 @@ Case conversion calculates saleable harvest and a single supplier-financed
 repayment. Other cash movements must already be normalised; a source ID alone
 does not prove evidence is valid. Results are not credit approvals.
 
+Every calculation input now has a source snapshot: value, unit, source, recording
+date, observed/declared/assumed basis and synthetic status. Missing, conflicting
+or mismatched sources prevent a result. Scenario edits are explicit unsaved
+assumptions; source details retain the replaced demo value. This checks provenance
+coverage, not truth, source freshness or whether unrecorded household debts exist.
+
 Other financing arrangements, persistence, MCP tools, model execution,
 external evidence and human approval enforcement are not implemented yet.
 No field validation or agent evaluations have been completed. The eventual
