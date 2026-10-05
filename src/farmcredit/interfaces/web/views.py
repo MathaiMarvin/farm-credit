@@ -7,7 +7,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
 from farmcredit.adapters.demo import load_demo_case, load_demo_evidence
-from farmcredit.application.assess_evidence import assess_sourced_case
+from farmcredit.application.stress_scenarios import StressAssumptions, compare_stress
 from farmcredit.domain.evidence import EvidenceBasis, EvidenceRecord, InputValue
 from farmcredit.interfaces.web.forms import ScenarioForm
 
@@ -49,10 +49,18 @@ def workspace(request):
         },
     )
     result = None
+    stress_scenarios = ()
     evidence = load_demo_evidence()
     evidence_issues = ()
     if request.method == "POST" and form.is_valid():
-        case = replace(case, sale=replace(case.sale, **form.cleaned_data))
+        case = replace(
+            case,
+            sale=replace(
+                case.sale,
+                received_on=form.cleaned_data["received_on"],
+                price_per_kg=form.cleaned_data["price_per_kg"],
+            ),
+        )
         records = []
         for record in evidence:
             field = record.input.field.removeprefix("sale.")
@@ -73,7 +81,16 @@ def workspace(request):
             records.append(record)
         evidence = tuple(records)
         try:
-            assessment = assess_sourced_case(case, evidence, as_of=timezone.localdate())
+            comparison = compare_stress(
+                case,
+                evidence,
+                StressAssumptions(
+                    form.cleaned_data["price_reduction"], form.cleaned_data["harvest_reduction"]
+                ),
+                as_of=timezone.localdate(),
+            )
+            assessment = comparison.baseline
+            stress_scenarios = comparison.scenarios
             result = assessment.cashflow
             evidence_issues = assessment.issues
         except ValueError as error:
@@ -94,6 +111,7 @@ def workspace(request):
         ],
         "form": form,
         "result": result,
+        "stress_scenarios": stress_scenarios,
         "cash_records": sorted(case.other_movements, key=lambda movement: movement.on),
         "repayment_amount": -case.financing.as_repayment().amount,
         "shortfall_amount": -result.cash_after_repayment
