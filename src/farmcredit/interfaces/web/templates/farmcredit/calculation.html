@@ -12,6 +12,13 @@
     <p id="request-error" class="form-error" role="alert" hidden>We couldn’t complete the calculation. Check your connection and try again.</p>
     <p id="stale-result" class="date-hint" role="status" hidden>Inputs changed. Calculate again to see the updated result.</p>
     <div id="result" aria-live="polite" aria-atomic="true">
+    {% if evidence_issues %}
+      <div class="form-error" role="alert" tabindex="-1" id="evidence-errors">
+        <h3>Further evidence required</h3>
+        <p>No calculation was produced. Resolve these source issues first.</p>
+        <ul>{% for issue in evidence_issues %}<li>{{ issue.field }}: {{ issue.reason }}{% if issue.record_ids %} ({{ issue.record_ids|join:", " }}){% endif %}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
     {% if result %}
       <div class="result-panel {% if result.shortfalls %}has-shortfall{% endif %}" tabindex="-1" id="result-summary">
         <p class="eyebrow">Calculation result</p>
@@ -22,7 +29,25 @@
       {% if result.future_movements %}<div class="future-note"><strong>Expected after the deadline</strong>{% for movement in result.future_movements %}<p>KSh {{ movement.amount|floatformat:"2g" }} on {{ movement.on|date:"j M Y" }} is excluded from cash available for this repayment.</p>{% endfor %}</div>{% endif %}
       <details><summary>Inspect dated cash balances</summary><div class="table-scroll"><table><caption>Projected cash; negative amounts mean unmet obligations.</caption><thead><tr><th scope="col">Date</th><th scope="col">Balance (KSh)</th></tr></thead><tbody>{% for balance in result.balances %}<tr><td>{{ balance.on|date:"j M Y" }}</td><td>{{ balance.amount|floatformat:"2g" }}</td></tr>{% endfor %}</tbody></table></div></details>
       <p class="fine-print">Calculation only. External evidence, stress testing and officer approval are not part of this screen yet.</p>
-    {% elif not form.errors %}<div class="empty-result"><span class="empty-icon" aria-hidden="true">↗</span><h3>Start with the recorded facts.</h3><p>Calculate to see the cash available at repayment and any earlier shortfalls.</p></div>{% endif %}
+    {% elif not form.errors and not evidence_issues %}<div class="empty-result"><span class="empty-icon" aria-hidden="true">↗</span><h3>Start with the recorded facts.</h3><p>Calculate to see the cash available at repayment and any earlier shortfalls.</p></div>{% endif %}
     </div>
+    <details id="evidence-details">
+      <summary>Inspect input sources ({{ evidence_records|length }})</summary>
+      <p class="fine-print">All demo inputs are synthetic assumptions. Recording a source does not verify its accuracy or freshness. Scenario edits apply only to this unsaved calculation.</p>
+      <div class="table-scroll">
+        <table>
+          <caption>Source snapshots for the displayed inputs</caption>
+          <thead><tr><th scope="col">Input and value</th><th scope="col">Source</th></tr></thead>
+          <tbody>
+            {% for row in evidence_rows %}{% with record=row.record %}
+              <tr>
+                <td>{{ row.label }}<br><strong>{{ record.input.value }}{% if record.input.unit != "date" %} {{ record.input.unit }}{% endif %}</strong></td>
+                <td>{{ record.source }}<br>{{ record.recorded_on|date:"j M Y" }} · {{ record.basis.value }}{% if record.synthetic %} · synthetic{% endif %}<br><small>{{ record.record_id }}</small></td>
+              </tr>
+            {% endwith %}{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
   </div>
 </section>

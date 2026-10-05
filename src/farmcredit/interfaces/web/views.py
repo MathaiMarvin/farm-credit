@@ -2,12 +2,39 @@
 from dataclasses import replace
 
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
-from farmcredit.adapters.demo import load_demo_case
-from farmcredit.application.assess_case import assess_case
+from farmcredit.adapters.demo import load_demo_case, load_demo_evidence
+from farmcredit.application.assess_evidence import assess_sourced_case
+from farmcredit.domain.evidence import EvidenceBasis, EvidenceRecord, InputValue
 from farmcredit.interfaces.web.forms import ScenarioForm
+
+
+def _input_label(field: str) -> str:
+    labels = {
+        "starts_on": "Assessment start date",
+        "opening_cash": "Opening available cash",
+        "sale.harvest_on": "Expected harvest date",
+        "sale.received_on": "Expected sale receipt date",
+        "sale.gross_kg": "Expected harvest quantity",
+        "sale.retained_kg": "Harvest retained by household",
+        "sale.lost_kg": "Expected harvest loss",
+        "sale.price_per_kg": "Assumed sale price",
+        "financing.supplied_on": "Input supply date",
+        "financing.principal": "Financed input amount",
+        "financing.charges": "Financing charges",
+        "financing.repayment_on": "Proposed repayment date",
+    }
+    return labels.get(
+        field,
+        field.removeprefix("cash/")
+        .replace("/on", " / date")
+        .replace("/amount", " / amount")
+        .replace("-", " ")
+        .capitalize(),
+    )
 
 
 @never_cache
@@ -22,14 +49,49 @@ def workspace(request):
         },
     )
     result = None
+    evidence = load_demo_evidence()
+    evidence_issues = ()
     if request.method == "POST" and form.is_valid():
         case = replace(case, sale=replace(case.sale, **form.cleaned_data))
+        records = []
+        for record in evidence:
+            field = record.input.field.removeprefix("sale.")
+            if record.input.field.startswith("sale.") and field in form.cleaned_data:
+                current = InputValue(
+                    record.input.field, form.cleaned_data[field], record.input.unit
+                )
+                if current != record.input:
+                    record = EvidenceRecord(
+                        record_id=f"scenario:{record.input.field}",
+                        input=current,
+                        source=f"Unsaved scenario edit; replaces {record.record_id} "
+                        f"({record.input.value} {record.input.unit})",
+                        recorded_on=timezone.localdate(),
+                        basis=EvidenceBasis.ASSUMED,
+                        synthetic=True,
+                    )
+            records.append(record)
+        evidence = tuple(records)
         try:
-            result = assess_case(case)
+            assessment = assess_sourced_case(case, evidence, as_of=timezone.localdate())
+            result = assessment.cashflow
+            evidence_issues = assessment.issues
         except ValueError as error:
             form.add_error(None, str(error))
     context = {
         "case": case,
+        "evidence_records": evidence,
+        "evidence_rows": [
+            {"label": _input_label(record.input.field), "record": record} for record in evidence
+        ],
+        "evidence_issues": [
+            {
+                "field": _input_label(issue.field),
+                "reason": issue.reason,
+                "record_ids": issue.record_ids,
+            }
+            for issue in evidence_issues
+        ],
         "form": form,
         "result": result,
         "cash_records": sorted(case.other_movements, key=lambda movement: movement.on),

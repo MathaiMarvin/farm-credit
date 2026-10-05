@@ -4,8 +4,31 @@
 from datetime import date
 from decimal import Decimal
 
+from farmcredit.application.assess_evidence import case_inputs
 from farmcredit.domain.cashflow import CashMovement
+from farmcredit.domain.evidence import EvidenceBasis, EvidenceRecord
 from farmcredit.domain.seasonal_case import HarvestSale, SeasonalCase, SupplierFinancing
+
+DEMO_RECORDED_ON = date(2026, 10, 5)
+
+
+def load_demo_evidence() -> tuple[EvidenceRecord, ...]:
+    """Synthetic source snapshots, always generated from the original fixture.
+
+    Never pass a changed case here to manufacture support for edited values.
+    Every value is an assumption, including the simulated opening balance.
+    """
+    return tuple(
+        EvidenceRecord(
+            record_id=f"demo:{item.field}",
+            input=item,
+            source="Synthetic cooperative planning worksheet",
+            recorded_on=DEMO_RECORDED_ON,
+            basis=EvidenceBasis.ASSUMED,
+            synthetic=True,
+        )
+        for item in case_inputs(load_demo_case())
+    )
 
 
 def load_demo_case() -> SeasonalCase:
