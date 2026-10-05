@@ -10,10 +10,9 @@ repayment does. Evidence validation and financing normalisation belong upstream.
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from itertools import groupby
 from typing import Iterable
-
 
 ZERO = Decimal("0.00")
 CENT = Decimal("0.01")
