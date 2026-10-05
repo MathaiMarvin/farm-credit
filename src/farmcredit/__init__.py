@@ -1,0 +1,1 @@
+"""FarmCredit agricultural advisory application."""
