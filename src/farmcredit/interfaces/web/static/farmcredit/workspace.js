@@ -3,6 +3,8 @@ document.addEventListener("input", (event) => {
   if (!event.target.closest("#calculation form")) return;
   document.querySelector("#evidence-details").hidden = true;
   document.querySelector("#stale-result").hidden = false;
+  const reference = document.querySelector("#reference-status");
+  if (reference) reference.textContent = "Inputs changed. The saved version is unchanged; calculate to compare.";
   const result = document.querySelector("#result");
   if (result && result.querySelector("#result-summary")) {
     result.hidden = true;

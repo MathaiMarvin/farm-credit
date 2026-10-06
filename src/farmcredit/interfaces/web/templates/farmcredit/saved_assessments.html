@@ -1,0 +1,61 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if saved %}Assessment v{{ saved.version }}{% else %}Saved assessments{% endif %} · FarmCredit</title>
+  <link rel="stylesheet" href="{% static 'farmcredit/workspace.css' %}">
+</head>
+<body>
+<main class="saved-workspace">
+  <nav aria-label="Assessment navigation"><a href="{% url 'workspace' %}">← Case workspace</a><a href="{% url 'assessment-history' %}">Saved assessments</a></nav>
+  <h1>{% if saved %}Assessment v{{ saved.version }}{% else %}Saved assessments{% endif %}</h1>
+  <p class="notice">Local synthetic demo. Saved calculations are not approvals. Named officer review is not implemented.</p>
+  {% if storage_error %}
+    <p class="form-error" role="alert">{{ storage_error }}</p>
+    {% if save_token %}<form action="{% url 'save-assessment' %}" method="post">{% csrf_token %}<input type="hidden" name="calculation" value="{{ save_token }}"><button class="primary" type="submit">Retry save</button></form>{% endif %}
+  {% elif saved %}
+    <p>{{ saved.case_id }} · saved {{ saved.saved_on|date:"j M Y, H:i T" }} · {{ snapshot.inputs.repayment_mode }} repayments</p>
+    <p class="fine-print">Historical snapshot, displayed without recalculation. Policy: {{ snapshot.inputs.policy_version }}. Changing current inputs never rewrites this version.</p>
+    <p><a href="{% url 'workspace' %}?reference={{ saved.assessment_id }}">Compare with current case</a></p>
+    <section class="card calculation-body" aria-labelledby="saved-result">
+      <h2 id="saved-result">Saved calculation</h2>
+      <dl class="line-items">
+        <div><dt>Cash before final repayment</dt><dd>KSh {{ snapshot.result.cash_before_repayment|floatformat:"2g" }}</dd></div>
+        <div><dt>Cash after final repayment</dt><dd>KSh {{ snapshot.result.cash_after_repayment|floatformat:"2g" }}</dd></div>
+        <div><dt>Expected sale receipt</dt><dd>{{ snapshot.inputs.case.sale.received_on }}</dd></div>
+        <div><dt>Assumed sale price</dt><dd>KSh {{ snapshot.inputs.case.sale.price_per_kg|floatformat:"2g" }}/kg</dd></div>
+        <div><dt>Stress reductions: price / harvest</dt><dd>{{ snapshot.inputs.assumptions.price_reduction }}% / {{ snapshot.inputs.assumptions.harvest_reduction }}%</dd></div>
+      </dl>
+      <h3>Dated cash shortfalls</h3>
+      <p class="fine-print">Negative balances represent accumulated unmet obligations.</p>
+      <ul>{% for balance in snapshot.shortfalls %}<li>{{ balance.on }}: KSh {{ balance.amount|floatformat:"2g" }}</li>{% empty %}<li>No shortfall under the saved assumptions.</li>{% endfor %}</ul>
+      <details><summary>Saved repayment positions</summary>
+        {% for row in snapshot.result.repayments %}<p>{{ row.on }} · due KSh {{ row.due|floatformat:"2g" }} · before KSh {{ row.cash_before|floatformat:"2g" }} · after KSh {{ row.cash_after|floatformat:"2g" }}</p>{% endfor %}
+      </details>
+      <details><summary>Saved dated balances</summary>{% for row in snapshot.result.balances %}<p>{{ row.on }}: KSh {{ row.amount|floatformat:"2g" }}</p>{% endfor %}</details>
+      {% for item in snapshot.result.future_movements %}<p>Excluded after deadline: {{ item.on }} · {{ item.record_id }} · KSh {{ item.amount|floatformat:"2g" }}</p>{% endfor %}
+      <h3>Saved stress scenarios</h3>
+      {% for scenario in snapshot.scenarios %}
+      <details><summary>{{ scenario.label }}</summary>
+        <p>Price reduction {{ scenario.assumptions.price_reduction }}%; harvest reduction {{ scenario.assumptions.harvest_reduction }}%.</p>
+        {% if scenario.error %}<p>Not calculated: {{ scenario.error }}</p>{% else %}
+        <p>After final repayment: KSh {{ scenario.result.cash_after_repayment|floatformat:"2g" }}.</p>
+        <ul>{% for row in scenario.shortfalls %}<li>{{ row.on }}: KSh {{ row.amount|floatformat:"2g" }}</li>{% empty %}<li>No shortfall under the saved assumptions.</li>{% endfor %}</ul>
+        {% endif %}
+      </details>
+      {% endfor %}
+      <details><summary>Saved input sources ({{ snapshot.inputs.evidence|length }})</summary>
+      {% for record in snapshot.inputs.evidence %}
+        <p><strong>{{ record.input.field }}</strong>: {{ record.input.value }} {{ record.input.unit }}<br>{{ record.source }} · {{ record.recorded_on }} · {{ record.basis }}{% if record.synthetic %} · synthetic{% endif %}<br><small>{{ record.record_id }}</small></p>
+      {% endfor %}
+      </details>
+      <details><summary>Complete saved snapshot</summary><p class="fine-print">Includes the exact case, sources, schedule, stress assumptions, calculation results and policy version.</p><pre class="snapshot-json">{{ saved.snapshot_json }}</pre></details>
+    </section>
+  {% else %}
+    <p>Each version preserves the calculation as it was saved.</p>
+    <ol>{% for item in history %}<li><a href="{% url 'saved-assessment' item.assessment_id %}">{{ item.case_id }} · version {{ item.version }}</a> · {{ item.saved_on|date:"j M Y, H:i T" }}</li>{% empty %}<li>No assessments saved yet. Calculate a case, then select Save assessment.</li>{% endfor %}</ol>
+  {% endif %}
+</main>
+</body>
+</html>

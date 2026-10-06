@@ -18,6 +18,7 @@
     <a class="brand" href="{% url 'workspace' %}"><span class="brand-mark" aria-hidden="true">f</span>farmcredit<span class="brand-dot">.</span></a>
     <div class="workspace-name"><span class="avatar" aria-hidden="true">FC</span><div>Demo cooperative<small>Extension workspace</small></div></div>
     <nav aria-label="Case sections">
+      <a href="{% url 'assessment-history' %}">Saved assessments</a>
       <a class="selected" href="#main" aria-current="page"><span aria-hidden="true">▤</span> Household case</a>
       <a href="#records"><span aria-hidden="true">≡</span> Recorded cash flows</a>
     </nav>
@@ -27,7 +28,7 @@
     <header class="topbar"><span>Workspace <span class="separator">/</span> Household FC-001</span><span class="badge">Synthetic demo</span></header>
     <main id="main" tabindex="-1">
       <div class="page-heading"><div><p class="eyebrow">Seasonal input credit</p><h1>A clearer view of repayment.</h1><p class="subtitle">Review the household’s records, then check when cash is available.</p></div><span class="case-id">FC-001</span></div>
-      <div class="notice"><span class="notice-dot" aria-hidden="true"></span><p>All records are synthetic. This calculation is not a credit decision. Changes are not saved.</p></div>
+      <div class="notice"><span class="notice-dot" aria-hidden="true"></span><p>All records are synthetic. This calculation is not a credit decision. Calculations are unsaved until you select Save assessment.</p></div>
       <nav class="notice" aria-label="Repayment demonstrations">
         <a href="?repayment_mode=seasonal"{% if not monthly %} aria-current="page"{% endif %}>Seasonal repayment</a>
         <span aria-hidden="true"> · </span>

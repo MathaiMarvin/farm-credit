@@ -3,6 +3,7 @@
   <div class="calculation-body">
     <form action="{% url 'workspace' %}" method="post" hx-post="{% url 'workspace' %}" hx-target="#calculation" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#busy" novalidate>
       {% csrf_token %}
+      {% if reference %}<input type="hidden" name="reference" value="{{ reference.assessment_id }}">{% endif %}
       <input type="hidden" name="repayment_mode" value="{{ repayment_mode }}">
       {% if form.errors %}<div class="form-error" role="alert" tabindex="-1" id="form-errors"><strong>We need a correction before calculating.</strong>{{ form.non_field_errors }}{% for field in form %}{% if field.errors %}<div id="{{ field.auto_id }}_error">{% for error in field.errors %}<p><a href="#{{ field.id_for_label }}">{{ field.label }}: {{ error }}</a></p>{% endfor %}</div>{% endif %}{% endfor %}</div>{% endif %}
       {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}<p class="help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</p></div>{% endfor %}
@@ -12,6 +13,7 @@
     </form>
     <p id="request-error" class="form-error" role="alert" hidden>We couldn’t complete the calculation. Check your connection and try again.</p>
     <p id="stale-result" class="date-hint" role="status" hidden>Inputs changed. Calculate again to see the updated result.</p>
+    {% if reference %}<p id="reference-status" role="status">Comparing saved version {{ reference.version }}. {{ reference_status }} <a href="{% url 'saved-assessment' reference.assessment_id %}">Open saved version</a></p>{% endif %}
     <div id="result" aria-live="polite" aria-atomic="true">
     {% if evidence_issues %}
       <div class="form-error" role="alert" tabindex="-1" id="evidence-errors">
@@ -21,6 +23,13 @@
       </div>
     {% endif %}
     {% if result %}
+      {% if save_token %}
+      <form action="{% url 'save-assessment' %}" method="post" id="save-assessment-form">
+        {% csrf_token %}<input type="hidden" name="calculation" value="{{ save_token }}">
+        <p class="fine-print">Save the displayed inputs, sources and results as a new local version. This does not approve credit.</p>
+        <button class="primary" type="submit">Save assessment</button>
+      </form>
+      {% endif %}
       <div class="result-panel {% if result.shortfalls %}has-shortfall{% endif %}" tabindex="-1" id="result-summary">
         <p class="eyebrow">Calculation result</p>
         {% if shortfall_amount %}<h3>Repayment timing shortfall</h3><p>Cash falls short by <strong>KSh {{ shortfall_amount|floatformat:"2g" }}</strong> on {{ case.financing.repayment_on|date:"j M Y" }}.</p>{% elif result.shortfalls %}<h3>Earlier cash shortfall</h3><p>A later surplus does not cover obligations due before money arrives.</p>{% else %}<h3>No shortfall in this scenario</h3><p>The stated cash flows cover the repayment when it is due.</p>{% endif %}

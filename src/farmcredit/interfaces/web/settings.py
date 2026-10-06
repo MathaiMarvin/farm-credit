@@ -3,6 +3,7 @@
 
 import os
 import secrets
+from pathlib import Path
 
 SECRET_KEY = os.environ.get("FARMCREDIT_SECRET_KEY") or secrets.token_urlsafe(50)
 DEBUG = True
@@ -26,3 +27,5 @@ STATIC_URL = "/static/"
 TIME_ZONE = "Africa/Nairobi"
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+ASSESSMENT_DB = Path(os.environ.get("FARMCREDIT_ASSESSMENT_DB", ".local/assessments.sqlite3"))
