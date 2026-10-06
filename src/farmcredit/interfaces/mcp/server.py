@@ -12,6 +12,7 @@ from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
 
 from farmcredit.adapters.agent_runs import invoke_tool, run_details
 from farmcredit.application.run_tools import MAX_RUN_SECONDS, ToolName
+from farmcredit.application.tool_schema import DESCRIPTIONS, FIELDS, _object
 
 SALT = "farmcredit.mcp.run.v1"
 
@@ -33,44 +34,6 @@ def _binding(token: str) -> dict:
         return binding
     except (signing.BadSignature, ValueError, KeyError, TypeError) as error:
         raise PermissionError("Run credential is invalid or expired.") from error
-
-
-def _object(properties: dict) -> dict:
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": list(properties),
-        "additionalProperties": False,
-    }
-
-
-STRING = {"type": "string"}
-STRINGS = {"type": "array", "items": STRING}
-STRESS = {
-    key: {
-        "type": "string",
-        "maxLength": 20,
-        "description": "Exact decimal percentage from 0 to 100.",
-    }
-    for key in ("price_reduction", "harvest_reduction")
-}
-FIELDS = {
-    "get_case": {},
-    "get_records": {"categories": STRINGS},
-    "assess_cashflow": STRESS,
-    "save_draft": {
-        **STRESS,
-        "calculation_id": {"type": ["string", "null"]},
-        "statements": {"type": "array", "items": _object({"text": STRING, "record_ids": STRINGS})},
-        "questions": STRINGS,
-    },
-}
-DESCRIPTIONS = {
-    "get_case": "Read the bound saved case, evidence gaps and provenance.",
-    "get_records": "Read source groups: cash_flow, harvest, credit_terms, repayment_schedule, repayment_history.",
-    "assess_cashflow": "Calculate from saved evidence with explicit stress assumptions; missing evidence stays unknown.",
-    "save_draft": "Save cited statements and questions for human review using a calculation from this run. Ends the run; never approves credit.",
-}
 
 
 def create_server(token: str) -> Server:

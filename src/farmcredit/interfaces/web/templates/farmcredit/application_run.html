@@ -1,0 +1,11 @@
+{% extends 'farmcredit/base.html' %}
+{% block title %}Evidence check{% endblock %}
+{% block content %}<div class="assessment-page"><h1>Evidence check · {{ run.status }}</h1>
+{% if run.execution_kind == 'model' %}<p class="notice">Model investigation · {{ run.model }}. Drafts require human review; this run cannot approve credit.</p>
+<p>{{ run.model_attempts }} model calls · Tokens: {{ run.token_usage|default_if_none:"unknown" }} · Provider-reported cost (USD): {{ run.cost|default_if_none:"unknown" }}</p>
+{% else %}<p class="notice">Fixed internal tool sequence. Model, token usage and cost are unknown; no model execution is claimed.</p>{% endif %}
+{% if run.reason %}<p class="form-error" role="status">{{ run.reason }}</p>{% endif %}
+{% if run.application_id %}<p><a href="{% url 'application-intake' run.application_id %}">Back to saved application</a></p>{% endif %}
+{% if run.draft_id %}<p><a class="secondary-link" href="{% url 'saved-draft' run.draft_id %}">Open draft for human review</a></p>{% endif %}
+{% if run.events %}<section class="card calculation-body"><h2>Investigation trace</h2>{% for event in run.events %}<details><summary>{{ event.kind }} · {{ event.recorded_at }}</summary><pre class="run-result">{{ event.payload|pprint }}</pre></details>{% endfor %}</section>{% endif %}
+<section class="card calculation-body"><h2>Recorded activity</h2>{% for call in run.calls %}<details><summary>{{ call.sequence }}. {{ call.tool }} · {{ call.status }}</summary><p>Started {{ call.started_at }}{% if call.finished_at %} · finished {{ call.finished_at }}{% endif %}</p>{% if call.error %}<p class="form-error">{{ call.error }}</p>{% endif %}<pre class="run-result">{{ call.result|pprint }}</pre></details>{% empty %}<p>No tool calls recorded.</p>{% endfor %}</section></div>{% endblock %}

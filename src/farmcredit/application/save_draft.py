@@ -62,10 +62,11 @@ def _text(value: str) -> None:
 @dataclass(frozen=True)
 class SavedDraft:
     draft_id: str
-    assessment_id: str
+    assessment_id: str | None
     version: int
     saved_at: str
     snapshot_json: str
+    application_id: str | None = None
 
 
 def prepare_draft(request: DraftRequest, brief: CaseBrief, calculation: Calculation) -> str:
@@ -75,16 +76,31 @@ def prepare_draft(request: DraftRequest, brief: CaseBrief, calculation: Calculat
         brief.version,
     ):
         raise ValueError("Calculation does not belong to the bound assessment.")
+    if calculation.application_id != brief.application_id:
+        raise ValueError("Calculation does not belong to the bound application.")
     if calculation.assumptions != request.assumptions:
         raise ValueError("Calculation assumptions do not match the draft.")
     if request.calculation_id != calculation.calculation_id:
         if request.calculation_id is not None or calculation.comparison is not None:
             raise ValueError("Calculation reference does not match the server result.")
-    available = {record.record_id for record in brief.sources}
+    sources = (
+        *brief.sources,
+        *(calculation.institution.sources if calculation.institution else ()),
+        *(calculation.market.sources if calculation.market else ()),
+        *(calculation.kamis.sources if calculation.kamis else ()),
+        *(calculation.weather.sources if calculation.weather else ()),
+    )
+    available = {record.record_id for record in sources}
     if any(not set(statement.record_ids) <= available for statement in request.statements):
         raise ValueError("A citation does not belong to this saved case version.")
     incomplete = (
-        calculation.comparison is None or bool(calculation.issues) or bool(calculation.error)
+        calculation.comparison is None
+        or bool(calculation.issues)
+        or bool(calculation.error)
+        or (
+            calculation.institution is not None
+            and calculation.institution.review.status != "checks_satisfied"
+        )
     )
     if incomplete and not request.questions:
         raise ValueError("An incomplete assessment needs questions for the officer.")
@@ -93,12 +109,18 @@ def prepare_draft(request: DraftRequest, brief: CaseBrief, calculation: Calculat
             "status": "draft",
             "kind": "evidence_request" if incomplete else "advisory",
             "assessment_id": brief.assessment_id,
+            "application_id": brief.application_id,
+            "context": brief.context,
             "case_id": brief.case_id,
             "input_version": brief.version,
             "input_fingerprint": brief.input_fingerprint,
             "statements": request.statements,
             "questions": request.questions,
-            "sources": brief.sources,
+            "sources": sources,
+            "institution": calculation.institution,
+            "market": calculation.market,
+            "kamis": calculation.kamis,
+            "weather": calculation.weather,
             "calculation": calculation,
             "limitations": (
                 *brief.limitations,

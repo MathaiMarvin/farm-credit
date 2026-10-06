@@ -25,7 +25,8 @@ class GetRecordsTests(TestCase):
         self.assertEqual(len(all_records), 47)
         self.assertEqual(len({r.record_id for r in all_records}), 47)
         self.assertTrue(all(r.synthetic and r.basis.value == "assumed" for r in all_records))
-        self.assertTrue(all(g.status == RecordStatus.AVAILABLE for g in result.groups[:-1]))
+        self.assertTrue(all(g.status == RecordStatus.AVAILABLE for g in result.groups[:4]))
+        self.assertTrue(all(g.status == RecordStatus.UNAVAILABLE for g in result.groups[4:]))
         self.assertEqual(result.groups[-1].status, RecordStatus.UNAVAILABLE)
         self.assertEqual(result.groups[-1].records, ())
 

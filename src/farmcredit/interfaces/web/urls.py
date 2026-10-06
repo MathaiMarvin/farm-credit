@@ -2,6 +2,7 @@
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
 
+from farmcredit.interfaces.web import application_views
 from farmcredit.interfaces.web.draft_views import saved_draft, submit_draft_review
 from farmcredit.interfaces.web.review_views import review_assessment
 from farmcredit.interfaces.web.saved_views import (
@@ -12,6 +13,19 @@ from farmcredit.interfaces.web.saved_views import (
 from farmcredit.interfaces.web.views import workspace
 
 urlpatterns = [
+    path("applications/", application_views.applications, name="applications"),
+    path("applications/new/", application_views.application_intake, name="application-new"),
+    path(
+        "applications/<uuid:application_id>/",
+        application_views.application_intake,
+        name="application-intake",
+    ),
+    path(
+        "applications/<uuid:application_id>/investigate/",
+        application_views.investigate,
+        name="application-investigate",
+    ),
+    path("runs/<uuid:run_id>/", application_views.application_run, name="application-run"),
     path("", workspace, name="workspace"),
     path(
         "accounts/login/",

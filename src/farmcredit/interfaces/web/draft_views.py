@@ -12,6 +12,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from farmcredit.adapters.draft_reviews import draft_context, review_draft
+from farmcredit.application.intake import intake_label
 from farmcredit.domain.draft_review import DraftReviewRequest
 from farmcredit.domain.review import Officer
 
@@ -40,6 +41,10 @@ def _render_draft(request, draft_id, *, error=None, status=200, note=""):
     context.update(
         {
             "baseline": baseline,
+            "calculation_issues": [
+                {"label": intake_label(issue["field"]), "reason": issue["reason"]}
+                for issue in snapshot["calculation"]["issues"]
+            ],
             "shortfalls": shortfalls,
             "statements": [
                 {
