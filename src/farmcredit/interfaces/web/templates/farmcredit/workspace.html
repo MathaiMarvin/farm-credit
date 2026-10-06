@@ -28,6 +28,11 @@
     <main id="main" tabindex="-1">
       <div class="page-heading"><div><p class="eyebrow">Seasonal input credit</p><h1>A clearer view of repayment.</h1><p class="subtitle">Review the household’s records, then check when cash is available.</p></div><span class="case-id">FC-001</span></div>
       <div class="notice"><span class="notice-dot" aria-hidden="true"></span><p>All records are synthetic. This calculation is not a credit decision. Changes are not saved.</p></div>
+      <nav class="notice" aria-label="Repayment demonstrations">
+        <a href="?repayment_mode=seasonal"{% if not monthly %} aria-current="page"{% endif %}>Seasonal repayment</a>
+        <span aria-hidden="true"> · </span>
+        <a href="?repayment_mode=monthly"{% if monthly %} aria-current="page"{% endif %}>Monthly instalments</a>
+      </nav>
       <div class="workspace-grid">
         <div class="case-facts">
           <section class="card" aria-labelledby="household-heading">
@@ -38,13 +43,19 @@
           </section>
           <section class="card" aria-labelledby="package-heading">
             <div class="section-heading"><span class="section-number">02</span><div><p class="eyebrow">The proposal</p><h2 id="package-heading">Input package &amp; repayment</h2></div></div>
-            <dl class="line-items"><div><dt>Inputs paid directly to supplier</dt><dd>KSh {{ case.financing.principal|floatformat:"0g" }}</dd></div><div><dt>Financing charges</dt><dd>KSh {{ case.financing.charges|floatformat:"0g" }}</dd></div><div class="total"><dt>Total due {{ case.financing.repayment_on|date:"j M Y" }}</dt><dd>KSh {{ repayment_amount|floatformat:"0g" }}</dd></div></dl>
-            <p class="fine-print">The package does not enter household cash. Its repayment is counted once.</p>
+            <dl class="line-items"><div><dt>Inputs paid directly to supplier</dt><dd>KSh {{ case.financing.principal|floatformat:"0g" }}</dd></div><div><dt>Financing charges</dt><dd>KSh {{ case.financing.charges|floatformat:"0g" }}</dd></div><div class="total"><dt>Total due by {{ case.financing.repayment_on|date:"j M Y" }}</dt><dd>KSh {{ repayment_amount|floatformat:"0g" }}</dd></div></dl>
+            {% if monthly %}
+            <h3>Monthly instalments · synthetic terms</h3>
+            <p class="fine-print">{{ case.financing.schedule_source }} · {{ case.financing.schedule_version }}. Dates and amounts are supplied assumptions.</p>
+            <dl class="line-items">{% for row in schedule_rows %}<div><dt>{{ row.on|date:"j M Y" }}</dt><dd>KSh {{ row.due|floatformat:"2g" }}</dd></div>{% endfor %}</dl>
+            {% endif %}
+            <p class="fine-print">The package does not enter household cash. Each repayment is counted once.</p>
           </section>
           <section class="card" id="records" aria-labelledby="records-heading">
             <div class="section-heading"><span class="section-number">03</span><div><p class="eyebrow">The starting position</p><h2 id="records-heading">Recorded cash flows</h2></div></div>
             <dl class="line-items"><div><dt>Opening cash · {{ case.starts_on|date:"j M Y" }}</dt><dd>KSh {{ case.opening_cash|floatformat:"0g" }}</dd></div></dl>
             <details><summary>Inspect {{ case.other_movements|length }} cash commitments</summary><div class="table-scroll"><table><caption>Amounts leaving household cash</caption><thead><tr><th scope="col">Record</th><th scope="col">Date</th><th scope="col">KSh</th></tr></thead><tbody>{% for movement in cash_records %}<tr><td>{{ movement.record_id }}</td><td>{{ movement.on|date:"j M Y" }}</td><td>{{ movement.amount|floatformat:"2g" }}</td></tr>{% endfor %}</tbody></table></div></details>
+            {% if monthly %}<p class="fine-print">Income and expense coverage is explicitly assumed complete through {{ case.coverage_through|date:"j M Y" }} for this synthetic fixture.</p>{% endif %}
             <p class="fine-print">Other income and obligations are explicitly zero in this demo.</p>
           </section>
         </div>

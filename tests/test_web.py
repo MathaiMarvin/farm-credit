@@ -227,3 +227,51 @@ class WorkspaceTests(SimpleTestCase):
             )
             self.assertContains(response, "We need a correction")
             self.assertNotContains(response, 'id="result-summary"')
+
+    def test_monthly_demo_displays_supplied_schedule(self):
+        response = self.client.get("/", {"repayment_mode": "monthly"})
+        self.assertContains(response, "Monthly instalments · synthetic terms")
+        self.assertContains(response, "demo-v1")
+        self.assertContains(response, 'name="repayment_mode" value="monthly"')
+        self.assertContains(response, "Inspect input sources (47)")
+        self.assertNotContains(response, 'id="repayment-positions"')
+
+    def test_monthly_form_shows_early_gap_and_positive_final_balance(self):
+        for partial in (False, True):
+            response = self.client.post(
+                "/",
+                {
+                    "repayment_mode": "monthly",
+                    "received_on": "2027-09-10",
+                    "price_per_kg": "40",
+                    "price_reduction": "20",
+                    "harvest_reduction": "20",
+                },
+                **({"HTTP_HX_REQUEST": "true"} if partial else {}),
+            )
+            self.assertContains(response, "Earlier cash shortfall")
+            self.assertContains(response, "First cash gap: 15 Aug 2027")
+            self.assertContains(response, "KSh -9,500.00")
+            self.assertContains(response, "KSh 40,000.00")
+            self.assertContains(response, 'id="repayment-positions"')
+            self.assertNotContains(response, "Coverage:")
+            self.assertContains(response, "Combined stress")
+
+    def test_unknown_repayment_mode_is_rejected(self):
+        self.assertEqual(self.client.get("/", {"repayment_mode": "unknown"}).status_code, 400)
+        self.assertEqual(self.client.post("/", {"repayment_mode": "unknown"}).status_code, 400)
+
+    def test_monthly_missing_source_blocks_results(self):
+        with patch("farmcredit.interfaces.web.views.load_monthly_evidence", return_value=()):
+            response = self.client.post(
+                "/",
+                {
+                    "repayment_mode": "monthly",
+                    "received_on": "2027-09-10",
+                    "price_per_kg": "40",
+                    "price_reduction": "20",
+                    "harvest_reduction": "20",
+                },
+            )
+        self.assertContains(response, "Further evidence required")
+        self.assertNotContains(response, 'id="repayment-positions"')

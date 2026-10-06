@@ -59,7 +59,7 @@ stable demonstration baseline. Keep workflow detail in `docs/workflow.md`.
 The calculator preserves earlier shortfalls and excludes late receipts from
 repayment capacity. Same-day receipts and payments require clarification.
 Case conversion calculates saleable harvest and a single supplier-financed
-repayment. Other cash movements must already be normalised; a source ID alone
+repayment or a supplied instalment schedule. Other cash movements must already be normalised; a source ID alone
 does not prove evidence is valid. Results are not credit approvals.
 
 Every calculation input now has a source snapshot: value, unit, source, recording
@@ -72,6 +72,16 @@ Price-only, harvest-only and combined stress tests reuse the baseline calculator
 The editable 20% defaults are illustrative assumptions, not calibrated forecasts.
 Retained food and losses stay fixed; impossible harvest scenarios show no result.
 Baseline evidence remains unchanged.
+
+Choose **Monthly instalments** to inspect six explicitly supplied synthetic
+payments. The same calculator reports every due-date balance and retains earlier
+funding gaps even when harvest leaves a final surplus. Schedule amounts must
+reconcile to principal plus stated charges, with matching source evidence and
+explicit household cash-flow coverage through the final instalment. Coverage is
+a recorded assertion, not independent proof that all household obligations exist
+in the data. Negative balances represent accumulated unmet obligations.
+The UI offers fixed demo schedules; importing lender records and generating
+interest schedules remain future work.
 
 Other financing arrangements, persistence, MCP tools, model execution,
 external evidence and human approval enforcement are not implemented yet.

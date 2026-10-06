@@ -1,12 +1,18 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 from dataclasses import replace
 
+from django.http import HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
-from farmcredit.adapters.demo import load_demo_case, load_demo_evidence
+from farmcredit.adapters.demo import (
+    load_demo_case,
+    load_demo_evidence,
+    load_monthly_case,
+    load_monthly_evidence,
+)
 from farmcredit.application.stress_scenarios import StressAssumptions, compare_stress
 from farmcredit.domain.evidence import EvidenceBasis, EvidenceRecord, InputValue
 from farmcredit.interfaces.web.forms import ScenarioForm
@@ -14,6 +20,7 @@ from farmcredit.interfaces.web.forms import ScenarioForm
 
 def _input_label(field: str) -> str:
     labels = {
+        "coverage_through": "Household cash-flow coverage confirmed through",
         "starts_on": "Assessment start date",
         "opening_cash": "Opening available cash",
         "sale.harvest_on": "Expected harvest date",
@@ -30,6 +37,7 @@ def _input_label(field: str) -> str:
     return labels.get(
         field,
         field.removeprefix("cash/")
+        .removeprefix("repayment/")
         .replace("/on", " / date")
         .replace("/amount", " / amount")
         .replace("-", " ")
@@ -40,7 +48,13 @@ def _input_label(field: str) -> str:
 @never_cache
 @require_http_methods(["GET", "POST"])
 def workspace(request):
-    case = load_demo_case()
+    mode = (request.POST if request.method == "POST" else request.GET).get(
+        "repayment_mode", "seasonal"
+    )
+    if mode not in ("seasonal", "monthly"):
+        return HttpResponseBadRequest("Unsupported repayment demonstration.")
+    monthly = mode == "monthly"
+    case = load_monthly_case() if monthly else load_demo_case()
     form = ScenarioForm(
         request.POST if request.method == "POST" else None,
         initial={
@@ -50,7 +64,7 @@ def workspace(request):
     )
     result = None
     stress_scenarios = ()
-    evidence = load_demo_evidence()
+    evidence = load_monthly_evidence() if monthly else load_demo_evidence()
     evidence_issues = ()
     if request.method == "POST" and form.is_valid():
         case = replace(
@@ -97,6 +111,11 @@ def workspace(request):
             form.add_error(None, str(error))
     context = {
         "case": case,
+        "repayment_mode": mode,
+        "monthly": monthly,
+        "schedule_rows": [
+            {"on": item.on, "due": -item.amount} for item in case.financing.as_repayments()
+        ],
         "evidence_records": evidence,
         "evidence_rows": [
             {"label": _input_label(record.input.field), "record": record} for record in evidence

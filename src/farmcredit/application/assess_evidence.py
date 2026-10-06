@@ -27,6 +27,15 @@ def case_inputs(case: SeasonalCase) -> tuple[InputValue, ...]:
         InputValue("financing.charges", case.financing.charges, "KES"),
         InputValue("financing.repayment_on", case.financing.repayment_on, "date"),
     ]
+    if case.coverage_through is not None:
+        values.append(InputValue("coverage_through", case.coverage_through, "date"))
+    for instalment in case.financing.schedule:
+        values.extend(
+            (
+                InputValue(f"repayment/{instalment.record_id}/on", instalment.on, "date"),
+                InputValue(f"repayment/{instalment.record_id}/amount", instalment.amount, "KES"),
+            )
+        )
     for movement in case.other_movements:
         values.extend(
             (
