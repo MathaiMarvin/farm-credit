@@ -315,6 +315,38 @@ class SavedAssessmentWebTests(SimpleTestCase):
         match = re.search(r'name="calculation" value="([^"]+)"', response.content.decode())
         return response, html.unescape(match.group(1)) if match else None
 
+    def test_guided_flow_shows_finding_before_save_and_review(self):
+        calculation, token = self.calculate()
+        body = calculation.content.decode()
+        self.assertLess(body.index('id="result-summary"'), body.index('id="save-assessment-form"'))
+        saved = self.client.post("/assessments/save/", {"calculation": token})
+        detail = self.client.get(saved.url)
+        body = detail.content.decode()
+        self.assertLess(body.index('id="saved-result"'), body.index('id="review-heading"'))
+        self.assertContains(detail, "Sign in to review")
+        self.assertContains(detail, "Officer sign in")
+        self.assertNotContains(detail, "Complete saved snapshot")
+        history = self.client.get("/assessments/")
+        self.assertContains(history, "Cash gap from 2027-08-15")
+        self.assertContains(history, "Awaiting officer review")
+        self.assertContains(history, "Open assessment")
+
+    def test_navigation_and_sign_in_are_available_before_saving(self):
+        for url in ("/", "/assessments/", "/accounts/login/"):
+            response = self.client.get(url)
+            self.assertContains(response, 'aria-label="Workspace sections"')
+            self.assertContains(response, "Officer sign in")
+            self.assertContains(response, 'href="#main"')
+        self.assertContains(self.client.get("/assessments/"), "Start with the household case")
+
+    def test_invalid_stress_setting_opens_optional_controls(self):
+        response, token = self.calculate(price_reduction="101")
+        self.assertIsNone(token)
+        self.assertContains(
+            response, "<details open><summary>Adjust stress tests (optional)</summary>"
+        )
+        self.assertContains(response, 'href="#id_price_reduction"')
+
     def test_save_reopen_history_and_retry(self):
         _, token = self.calculate()
         first = self.client.post("/assessments/save/", {"calculation": token})

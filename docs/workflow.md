@@ -168,3 +168,7 @@ Run checks from the repository root with Python 3.10 or newer: `PYTHONPATH=src p
 Next: define the application boundary that turns a validated case into these cash movements. Keep production integrations and extra product features out of this step. Maintain this document as the shared workflow specification; add separate documentation only when its purpose requires it.
 
 Competition reference: [Agriculture and Food Security track](https://agentic-africa-challenge.lovable.app/tracks/agriculture). The brief requires an officer-reviewed sourced advisory, tool traces, open-source delivery and honest evaluations. This document does not replace verification of final submission rules and dates.
+
+## Workspace interaction
+
+Use one shared workspace with visible officer sign-in and the sequence: review the household case, calculate cash flow, save the assessment, then record a named officer review. Show the finding before save or review actions. Keep stress settings, repayment schedules and source details available through disclosure controls. Saved history shows the finding and review status; advisory review remains distinct from the lender’s credit decision.

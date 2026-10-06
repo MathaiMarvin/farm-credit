@@ -54,7 +54,16 @@ def save_assessment(request):
 @require_http_methods(["GET"])
 def assessment_history(request):
     try:
-        history = AssessmentStore(settings.ASSESSMENT_DB).history("FC-001")
+        store = AssessmentStore(settings.ASSESSMENT_DB)
+        history = store.history("FC-001")
+        rows = [
+            {
+                "saved": item,
+                "snapshot": item.snapshot,
+                "review": store.review_context(item.assessment_id),
+            }
+            for item in history
+        ]
     except (OSError, sqlite3.Error):
         logger.exception("Assessment history unavailable")
         return render(
@@ -63,7 +72,7 @@ def assessment_history(request):
             {"storage_error": "Saved assessments are temporarily unavailable."},
             status=503,
         )
-    return render(request, "farmcredit/saved_assessments.html", {"history": history})
+    return render(request, "farmcredit/saved_assessments.html", {"history_rows": rows})
 
 
 @never_cache

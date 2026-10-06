@@ -1,33 +1,6 @@
-{% load static %}
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#060f40">
-  <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
-  <title>Household FC-001 · FarmCredit</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="{% static 'farmcredit/workspace.css' %}">
-  <script src="{% static 'farmcredit/vendor/htmx.min.js' %}" defer></script>
-  <script src="{% static 'farmcredit/workspace.js' %}" defer></script>
-</head>
-<body>
-  <a class="skip-link" href="#main">Skip to case</a>
-  <aside class="sidebar" aria-label="Workspace navigation">
-    <a class="brand" href="{% url 'workspace' %}"><span class="brand-mark" aria-hidden="true">f</span>farmcredit<span class="brand-dot">.</span></a>
-    <div class="workspace-name"><span class="avatar" aria-hidden="true">FC</span><div>Demo cooperative<small>Extension workspace</small></div></div>
-    <nav aria-label="Case sections">
-      <a href="{% url 'assessment-history' %}">Saved assessments</a>
-      <a class="selected" href="#main" aria-current="page"><span aria-hidden="true">▤</span> Household case</a>
-      <a href="#records"><span aria-hidden="true">≡</span> Recorded cash flows</a>
-    </nav>
-    <div class="sidebar-foot"><span class="eyebrow">Built for a clearer decision</span><p>Farm records. Visible assumptions. Human judgement.</p><a href="https://github.com/MathaiMarvin/farm-credit">Source code ↗</a></div>
-  </aside>
-  <div class="main-column">
-    <header class="topbar"><span>Workspace <span class="separator">/</span> Household FC-001</span><span class="badge">Synthetic demo</span></header>
-    <main id="main" tabindex="-1">
-      <div class="page-heading"><div><p class="eyebrow">Seasonal input credit</p><h1>A clearer view of repayment.</h1><p class="subtitle">Review the household’s records, then check when cash is available.</p></div><span class="case-id">FC-001</span></div>
+{% extends 'farmcredit/base.html' %}
+{% block content %}
+      <div class="page-heading"><div><p class="eyebrow">1 · Review the case</p><h1>Can this household repay on time?</h1><p class="subtitle">Review the household’s records, then check when cash is available.</p></div><span class="case-id">FC-001</span></div>
       <div class="notice"><span class="notice-dot" aria-hidden="true"></span><p>All records are synthetic. This calculation is not a credit decision. Calculations are unsaved until you select Save assessment.</p></div>
       <nav class="notice" aria-label="Repayment demonstrations">
         <a href="?repayment_mode=seasonal"{% if not monthly %} aria-current="page"{% endif %}>Seasonal repayment</a>
@@ -46,9 +19,9 @@
             <div class="section-heading"><span class="section-number">02</span><div><p class="eyebrow">The proposal</p><h2 id="package-heading">Input package &amp; repayment</h2></div></div>
             <dl class="line-items"><div><dt>Inputs paid directly to supplier</dt><dd>KSh {{ case.financing.principal|floatformat:"0g" }}</dd></div><div><dt>Financing charges</dt><dd>KSh {{ case.financing.charges|floatformat:"0g" }}</dd></div><div class="total"><dt>Total due by {{ case.financing.repayment_on|date:"j M Y" }}</dt><dd>KSh {{ repayment_amount|floatformat:"0g" }}</dd></div></dl>
             {% if monthly %}
-            <h3>Monthly instalments · synthetic terms</h3>
+            <details><summary>Monthly instalments · synthetic terms</summary>
             <p class="fine-print">{{ case.financing.schedule_source }} · {{ case.financing.schedule_version }}. Dates and amounts are supplied assumptions.</p>
-            <dl class="line-items">{% for row in schedule_rows %}<div><dt>{{ row.on|date:"j M Y" }}</dt><dd>KSh {{ row.due|floatformat:"2g" }}</dd></div>{% endfor %}</dl>
+            <dl class="line-items">{% for row in schedule_rows %}<div><dt>{{ row.on|date:"j M Y" }}</dt><dd>KSh {{ row.due|floatformat:"2g" }}</dd></div>{% endfor %}</dl></details>
             {% endif %}
             <p class="fine-print">The package does not enter household cash. Each repayment is counted once.</p>
           </section>
@@ -62,8 +35,4 @@
         </div>
         <div>{% include 'farmcredit/calculation.html' %}</div>
       </div>
-      <footer>FarmCredit · Human-reviewed agricultural advisory <a href="https://github.com/MathaiMarvin/farm-credit/blob/main/LICENSE">AGPLv3 licence ↗</a></footer>
-    </main>
-  </div>
-</body>
-</html>
+{% endblock %}

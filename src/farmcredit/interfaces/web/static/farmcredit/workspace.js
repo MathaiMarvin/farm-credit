@@ -13,7 +13,7 @@ document.addEventListener("input", (event) => {
 });
 document.addEventListener("htmx:afterSwap", () => {
   const target = document.querySelector("#form-errors, #evidence-errors, #result-summary");
-  if (target) target.focus({ preventScroll: true });
+  if (target) target.focus();
 });
 for (const eventName of [
   "htmx:sendError",
