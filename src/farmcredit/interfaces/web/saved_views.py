@@ -2,11 +2,10 @@
 """Read immutable snapshots and accept server-signed calculation saves."""
 
 import logging
-import sqlite3
 from uuid import uuid4
 
-from django.conf import settings
 from django.core import signing
+from django.db import DatabaseError
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
@@ -30,11 +29,11 @@ def save_assessment(request):
             "Calculation expired or changed. Calculate again before saving."
         )
     try:
-        saved = AssessmentStore(settings.ASSESSMENT_DB).save(
+        saved = AssessmentStore().save(
             calculation["snapshot_json"],
             calculation["operation_id"],
         )
-    except (OSError, sqlite3.Error):
+    except DatabaseError:
         logger.exception("Assessment save failed")
         return render(
             request,
@@ -54,7 +53,7 @@ def save_assessment(request):
 @require_http_methods(["GET"])
 def assessment_history(request):
     try:
-        store = AssessmentStore(settings.ASSESSMENT_DB)
+        store = AssessmentStore()
         history = store.history("FC-001")
         rows = [
             {
@@ -64,7 +63,7 @@ def assessment_history(request):
             }
             for item in history
         ]
-    except (OSError, sqlite3.Error):
+    except DatabaseError:
         logger.exception("Assessment history unavailable")
         return render(
             request,
@@ -79,10 +78,10 @@ def assessment_history(request):
 @require_http_methods(["GET"])
 def saved_assessment(request, assessment_id):
     try:
-        store = AssessmentStore(settings.ASSESSMENT_DB)
+        store = AssessmentStore()
         saved = store.get(str(assessment_id))
         review_context = store.review_context(str(assessment_id)) if saved else {}
-    except (OSError, sqlite3.Error):
+    except DatabaseError:
         logger.exception("Saved assessment unavailable")
         return render(
             request,

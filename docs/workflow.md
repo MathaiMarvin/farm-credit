@@ -1,17 +1,17 @@
 # Seasonal maize input credit workflow
 
-Status: proposed implementation baseline, 5 October 2026. The product scope and Django templates plus HTMX are agreed; the detailed rules below are engineering proposals pending field validation. No agent runs or institutional validation have been performed.
+Status: implementation updated 6 October 2026. Seasonal and monthly synthetic cases, authenticated assessment review, PostgreSQL persistence and four internal agent capabilities are implemented. Agent execution and draft review UI remain pending. The product scope and Django templates plus HTMX are agreed; the detailed rules below are engineering proposals pending field validation. No agent runs or institutional validation have been performed.
 
-FarmCredit helps a named agricultural extension officer review a household's proposed maize input package and associated credit terms. It combines institution-provided records with external evidence to produce a sourced draft advisory. This specification defines the first workflow and its limits before application scaffolding.
+FarmCredit helps a named officer review agricultural household cash flow against proposed credit terms within an institution's existing appraisal process. The proposed workflow has a credit officer own the financial review and an extension officer supply agricultural evidence; these responsibilities require partner validation. It combines institution-provided records with external evidence to produce a sourced draft advisory. This specification records the workflow, its limits and the next implementation gates.
 
 ## Scope and people
 
-- Demonstrate one fictional cooperative, one synthetic household case at a time, one maize season and one proposed repayment after harvest.
-- The cooperative supplies farm and financial records. An extension officer checks the case and reviews the advisory. The household is the beneficiary.
+- The current demonstration covers one fictional cooperative and one synthetic maize household with seasonal or monthly supplier-financed repayments. The calculator accepts explicit dated schedules; institution imports and irregular-schedule fixtures remain pending.
+- The institution supplies financial records and proposed terms. Agricultural evidence comes from the farmer, institution or extension officer with its basis recorded. Confirm who reviews and approves the advisory with a partner. The household is the beneficiary.
 - SACCOs, cooperatives and microfinance institutions are potential record providers and customers. Their systems, data availability and policies are not assumed to be interchangeable.
 - Officer approval applies to the advisory only. It does not approve credit. The lender retains that decision.
 - Do not send advice, issue a credit flag, originate a loan request, order inputs or disburse funds in this version.
-- Defer dairy, other crop models, instalment loan assessment, institution onboarding and production integrations. An unsupported case receives an explicit scope explanation.
+- Defer dairy production models, other crop models, interest-schedule generation, institution onboarding and production integrations. An unsupported case receives an explicit scope explanation.
 
 The proposed extension-office and cooperative relationship is a demo arrangement, not a claim of an existing partnership.
 
@@ -25,7 +25,23 @@ The proposed extension-office and cooperative relationship is a demo arrangement
 | [KAMIS](https://kamis.kilimo.go.ke/) distinguishes market, commodity, wholesale and retail quotations. | Preserve price type, unit, location and observation date; a quotation is not a guaranteed future farm-gate price. |
 | [Alliance research on Kenyan index insurance](https://alliancebioversityciat.org/projects/innovation-africa-climate-risk-insurance) identifies basis risk and unreliable loss assessment among challenges. | Do not infer farm yield loss or guaranteed insurance proceeds from weather observations alone. |
 
-These sources were reviewed on 5 October 2026. They support design questions, not a validated underwriting policy. We have not yet verified live provider APIs, data licences or a borrowed MCP server.
+
+## Repayment scope and implementation order
+
+| Arrangement | Assessment requirement | Delivery status |
+| --- | --- | --- |
+| One seasonal repayment | Compare dated household cash with the supplied amount and deadline. | Current calculator; terms and maize assumptions remain synthetic. |
+| Monthly instalments | Assess every supplied due date through the last instalment; identify the first gap even when harvest later produces a surplus. | Implemented with a synthetic six-instalment schedule; institution fit remains unvalidated. |
+| Irregular or grace-period schedule | Use explicit due dates and amounts, including any payments during the grace period; never infer that grace means no interest. | Same schedule contract; add fixtures after monthly cases. |
+| Produce-payment deduction | Identify gross receipts, each deduction and net cash received. Count a deduction once, whether supplied separately or already netted. | Planned normalisation; deduction is a collection method and can coexist with any schedule above. |
+
+Published examples support this scope, not a universal lending policy: [Trans Nation's Mkulima application form](https://www.tnsacco.co.ke/wp-content/uploads/2022/10/Mkulima-Products-Loan-Form.pdf) describes an amortised loan, monthly interest, security and recent produce-payment slips. Its [Mkulima Advance](https://tnsacco.co.ke/products/mkulima-advance/) refers to monthly produce payments and recent payment history. Confirm current terms directly; do not copy website rates into product policy.
+
+Use one institution-supplied schedule with a source/version and uniquely identified dated obligations. Keep financing method (cash or supplier), repayment schedule and collection method distinct. Do not divide principal by months or invent flat/reducing-balance interest, penalties or fees. Missing or inconsistent schedules require clarification. Identify restricted deposits separately from available cash; record membership, savings, security, arrears and eligibility evidence for lender review without treating cash-flow success as eligibility.
+
+Monthly assessment requires dated household income and expenses over the full schedule. Historical produce payments support assumptions but do not guarantee future receipts. If coverage ends before the final instalment, label any partial findings and withhold a complete-schedule conclusion. Negative balances represent unmet obligations, not an available overdraft.
+
+Keep one domain cash-flow engine and one officer workspace. Present each repayment's due amount, cash position and shortfall; avoid separate applications for each institution or product. Preserve the seasonal regression cases. Before delivery, test monthly income sufficient for all instalments, an early gap followed by harvest surplus, delayed income, missing later-month evidence and duplicate/netted deductions. Interest generation and automated eligibility decisions are separate future work.
 
 ## Officer journey
 
@@ -46,7 +62,7 @@ Record the approving person's identity, time and exact advisory version. Editing
 | Production | Expected harvest quantity and its basis; historical records when available; quantity retained for household use or seed; expected losses |
 | Sales | Saleable quantity, proposed buyer or market, price basis and unit, expected receipt date, transport and selling costs |
 | Inputs | Itemised package and other production costs, amounts, payment dates, paid versus unpaid status, funding source |
-| Proposed credit | Principal, cash versus supplier financing, disbursement date, deductions or fees, total amount due and due date |
+| Proposed credit | Principal, cash versus supplier financing, disbursement date, deductions or fees, source/version of repayment schedule, each due date and amount, collection method |
 | Household cash | Available opening cash at the assessment start, dated essential cash needs, other income included only with an explicit evidence basis |
 | Existing obligations | Payments due within the assessment period, existing produce deductions, arrears status and source coverage |
 | Evidence | Source record ID, provider, observation or effective date, retrieval time, units, geography and whether observed, declared or assumed |
@@ -59,7 +75,7 @@ Use deterministic code for all arithmetic. The model cannot supply replacement t
 
 1. Saleable quantity = expected harvest minus retained quantity minus expected losses. All terms must use compatible units and refer to distinct quantities.
 2. Expected sales receipts = saleable quantity times the stated assumed sale price. Selling costs are separate dated outflows unless the source explicitly supplies net receipts.
-3. Construct dated cash inflows and outflows from the assessment start through the proposed repayment date. Include production costs, household cash needs and existing obligations within this window.
+3. Construct dated cash inflows and outflows from the assessment start through the last proposed repayment date. Include production costs, household cash needs and existing obligations within this window.
 4. Cash loan proceeds enter as cash and cash-funded inputs leave as expenses. For direct supplier financing, record the financed input as a non-cash purchase; do not invent a household cash inflow or subtract that same purchase from household cash. Include the eventual debt repayment once.
 5. Costs already paid before the opening balance date remain visible for context but are not deducted again. A deducted fee reduces usable proceeds; a separately payable fee is an outflow. Avoid duplicate fees.
 6. For each date, closing cash = previous cash plus inflows minus outflows. If same-day ordering is unknown and affects a shortfall, flag the uncertainty.
@@ -85,15 +101,34 @@ No shortfall means only that the stated cash-flow assumptions balance. It does n
 
 ## Agent responsibilities and boundaries
 
-The agent can choose relevant read tools, investigate gaps, compare evidence, call the calculation tool and save a draft. Tool choice can vary by case. Financial validation, supported-scope checks and approval rules remain enforced in code.
+The proposed first agent prepares a sourced cash-flow advisory for one authorised case and immutable input version. The four application capabilities below are implemented internally. The current adapter authorises only demo case FC-001 and rechecks named officer access on every call; institution membership and agent execution remain pending.
 
-Use bounded retries and a configured run budget. On exhaustion, preserve the trace and explain what remains unresolved. Saving a draft must be safe to retry without creating duplicate advisories.
+Read tools preserve exact values, source basis, synthetic labels and missing/conflicting evidence. `get_records` retrieves only saved evidence; repayment history is explicitly unavailable. `assess_cashflow` recomputes saved inputs under the supported policy and explicit stress assumptions. Its reproducible calculation ID does not represent a persisted run.
 
-Log tool names, arguments, results or errors and timestamps. Link factual claims to supporting record IDs. Log model and policy versions, token usage where available, elapsed time and measured or explicitly estimated cost. Expose decision summaries and tool evidence, not hidden model reasoning.
+`save_draft` stores immutable, versioned advisory or evidence-request drafts in PostgreSQL. It validates current inputs, citation membership and a recomputed calculation reference, and attaches authoritative figures separately from unverified narrative. Exact retries return the original draft; changed payloads using the same key fail. Existing assessment approval does not approve these drafts. Draft-specific review, agent run binding/traces and MCP registration remain pending.
+
+| Tool | Input and result | Enforced boundary |
+| --- | --- | --- |
+| `get_case` | Bound case/version → household facts, repayment schedule, source references and known gaps. | Access only the case authorised for this run; no arbitrary customer lookup. |
+| `get_records` | Requested evidence categories → available records or explicit unavailable/conflicting status. | Read-only, case-scoped retrieval; never manufacture missing records. |
+| `assess_cashflow` | Bound input version and explicit stress assumptions → calculation ID, dated findings and evidence issues. | Server resolves inputs and runs domain validation; model cannot submit replacement totals or change loan terms. |
+| `save_draft` | Bound case/version, calculation ID if available, stress assumptions, cited explanation, questions and idempotency key → immutable draft/version. | Validate reference ownership and current version; attach authoritative figures server-side. Repeated identical saves return the same draft; changed payload with the same key is rejected. |
+
+These four application capabilities will be exposed through our MCP server. A borrowed MCP supplies one relevant external evidence task after source access, licence, freshness and geographic rules are verified. Select and test that source before choosing the orchestrator/model; no provider has been validated yet. External text is evidence, never an instruction to change policy or invoke approval.
+
+The agent chooses which gaps to investigate and which permitted read tools are relevant. Complete records can proceed to calculation; a missing repayment schedule triggers a record request; conflicting records require clarification; a provider outage permits only configured retries or an explicitly allowed alternative. Unresolved required evidence produces an evidence-request draft. The application preserves the actual execution trace and returns an incomplete run if generation or saving fails.
+
+Initial demo limits: at most 12 tool calls including retries, one retry per transient read failure, 120 seconds elapsed and 12,000 total model tokens per run. These are configurable engineering limits, not lending policy. Enforce them outside the model, record usage and preserve failures; tune against measured runs. No further model calls after exhaustion.
+
+Drafts contain evidence status, authoritative calculation findings, record citations, assumptions, limitations and questions for the officer. The UI will show actual tool activity and the resulting draft. Approval is a separate authenticated officer action bound to the exact draft/input version; input changes make approval stale. The agent has no approval tool. The lender retains the credit decision.
+
+Log tool arguments, results/errors, timestamps, model/policy versions, token usage, elapsed time and measured or explicitly estimated cost. Expose decision summaries and evidence rather than hidden model reasoning. Citation existence does not establish claim accuracy; evaluate whether cited records support each claim.
+
+Completion requires real open-weights model runs across at least eight of the cases below, including success, missing/conflicting evidence, timing and stress failures, provider outage, retry-safe saving and an instruction embedded in source data. Check tool selection, arithmetic consistency, supported claims and refusal to bypass approval. Report failures and repeated-run variation; unit tests alone do not establish agent performance.
 
 ## Evaluation cases
 
-These are planned synthetic tests inspired by real operating concerns. They are not claims about named farmers or completed runs. The first two calculation fixtures are specified below; remaining fixtures will be defined as their behaviour is implemented.
+These are planned synthetic tests inspired by real operating concerns. They are not claims about named farmers or completed runs. Numeric fixtures and exact expected arithmetic will be defined before implementation.
 
 | Case | Required behaviour |
 | --- | --- |
@@ -106,45 +141,14 @@ These are planned synthetic tests inspired by real operating concerns. They are 
 | Unknown external debt or repayment history | Do not substitute zero debt or a clean repayment record |
 | Combined price and yield shock | Recompute the scenario, preserve its assumptions and report any shortfall |
 | Weather tool unavailable | Bounded recovery; no invented weather result or unsupported conclusion |
-| Unsupported instalment schedule | Return the scope limit instead of treating it as a harvest balloon payment |
+| Monthly instalments before harvest | Report the first funding gap even if later harvest covers total repayments |
+| Incomplete schedule-period evidence | Preserve partial findings without claiming all instalments are covered |
 | Cash versus supplier financing | Equivalent economic inputs do not cause duplicated principal or fictitious cash |
 | Input change after draft | Mark the prior assessment stale and reject approval of it |
 | Repeated draft save | Preserve one logical draft for the same operation |
 | Instruction embedded in retrieved evidence | Treat it as source data; it cannot change policy or invoke approval |
 
 Keep evaluation answers separate from agent-visible records. Reserve unseen cases, repeat agent runs and report failures and run-to-run variation. Test arithmetic properties independently: reducing price cannot increase cash receipts when other inputs remain fixed. Officer approval must be enforced server-side.
-
-## First two calculation fixtures
-
-Both fixtures use the same synthetic two-acre maize household and change only the sale receipt date. Dates and amounts are test assumptions, not verified Kenyan crop calendars, market quotations or lending terms. They exercise calculation behaviour, not the complete agent or external evidence pipeline.
-
-| Shared input | Test value |
-| --- | --- |
-| Opening available cash on 1 April 2027 | KSh 40,000; excludes restricted savings and loan proceeds |
-| Inputs supplied on 2 April | KSh 20,000 paid directly by the lender to the supplier; no household cash movement |
-| Other production cash costs | KSh 6,000 on 10 April, KSh 6,000 on 10 June and KSh 3,000 on 1 September |
-| Household cash needs | KSh 2,500 on the 25th of each month, April through September; excludes food retained from this harvest |
-| Existing debt repayment | KSh 5,000 on 15 August |
-| Harvest on 1 September | 2,000 kg gross; retain 400 kg; lose 100 kg; sell 1,500 kg |
-| Assumed sale price | KSh 40/kg before selling costs; expected receipt KSh 60,000 |
-| Transport and selling costs | KSh 3,000 paid on 2 September, independently of receipt date |
-| Proposed repayment on 30 September | KSh 22,000, comprising KSh 20,000 principal and KSh 2,000 total financing charges; no additional fees |
-| Other cash flows through 30 September | Explicitly zero in these fixtures; never inferred from absent records |
-
-Expected cash before sale receipts or proposed repayment is `40,000 − 15,000 − 15,000 − 5,000 − 3,000 = KSh 2,000`. The financed inputs are recorded separately, not deducted again. These expectations belong to the evaluator, not the agent's case inputs.
-
-| Expected result | A: receipt on 10 September | B: receipt on 15 October |
-| --- | --- | --- |
-| Receipts available by repayment date | KSh 60,000 | KSh 0 |
-| Cash immediately before proposed repayment | KSh 62,000 | KSh 2,000 |
-| Cash after all obligations due on 30 September | KSh 40,000 | Projected deficit of KSh 20,000 |
-| Earlier cash shortfall | None | None |
-| Coverage, before repayment cash ÷ KSh 22,000 | 2.82× | 0.09× |
-| Calculation finding | No shortfall under stated assumptions | Baseline shortfall caused by receipt timing |
-
-Use exact decimal calculations and round displayed ratios to two decimal places using half-up rounding. Case B's negative balance represents unmet obligations, not an available overdraft or an executed payment. The expected October receipt remains visible as future evidence but cannot fund September repayment. Do not claim an October closing balance without modelling October obligations.
-
-Case A must not become a loan approval or a claim that stress scenarios pass. Case B must identify the date and amount of the shortfall, without changing terms or moving the receipt date to make the case pass. Both outputs remain drafts for officer review. Missing or conflicting source evidence can still prevent either fixture from becoming a complete advisory.
 
 ## Architecture consequences
 
@@ -161,14 +165,22 @@ Ask an extension officer and an agricultural credit or cooperative officer to wa
 
 Outstanding decisions: verify the seasonal calendar and package assumptions, choose one evidence source per need, define freshness rules and supported price conversion, and establish explicit demo policy settings. Financial thresholds must remain labelled assumptions until validated with a relevant institution.
 
-Implemented foundation: `src/farmcredit/domain/cashflow.py` calculates dated KES cash balances for one repayment, retaining future receipts and earlier deficits. It rejects duplicate source IDs, pre-opening movements, invalid amounts and ambiguous same-day receipt/payment ordering. That last rule is deliberately conservative until intraday ordering is supported. It accepts normalised cash movements; input-package normalisation, evidence validation, harvest calculations and the agent remain unimplemented.
+Implemented: seasonal and monthly cash-flow checks, immutable saved versions, authenticated officer review and PostgreSQL persistence. Review this complete workflow before exposing the agreed agent tools. Validate the workflow with officers before claiming institutional fit.
 
-Run checks from the repository root with Python 3.10 or newer: `PYTHONPATH=src python3 -m unittest discover -s tests -v`. The calculation has no third-party runtime dependencies. CI runs the same tests. Django and HTMX remain the agreed interface stack and will be added when the first interface is implemented.
+Officer walkthrough (to be arranged by the project owner; no interviews completed):
 
-Next: define the application boundary that turns a validated case into these cash movements. Keep production integrations and extra product features out of this step. Maintain this document as the shared workflow specification; add separate documentation only when its purpose requires it.
-
-Competition reference: [Agriculture and Food Security track](https://agentic-africa-challenge.lovable.app/tracks/agriculture). The brief requires an officer-reviewed sourced advisory, tool traces, open-source delivery and honest evaluations. This document does not replace verification of final submission rules and dates.
+1. Ask a credit officer and agricultural officer to describe one product using a blank form or redacted schedule, without personal customer records.
+2. Confirm financing and collection methods, actual repayment dates/amounts, fees, grace periods, mandatory savings and treatment of existing deductions.
+3. Identify available income/expense records, unknown outside debts, evidence freshness and which gaps force deferral.
+4. Confirm eligibility/security checks, who owns the advisory and how it fits the existing approval process.
+5. Replay a successful case and an early shortfall; ask what the current workspace misses. Record confirmed facts and unresolved questions here.
 
 ## Workspace interaction
 
-Use one shared workspace with visible officer sign-in and the sequence: review the household case, calculate cash flow, save the assessment, then record a named officer review. Show the finding before save or review actions. Keep stress settings, repayment schedules and source details available through disclosure controls. Saved history shows the finding and review status; advisory review remains distinct from the lender’s credit decision.
+Require sign-in before accessing any case, calculation, saved assessment or review. The public sign-in screen has no case data or workspace navigation. After sign-in, use one shared workspace and the sequence: review the household case, calculate cash flow, save the assessment, then record a named officer review. Show the finding before save or review actions. Keep stress settings, repayment schedules and source details available through disclosure controls. Saved history shows the finding and review status; advisory review remains distinct from the lender’s credit decision.
+
+## Persistence
+
+Use one PostgreSQL database per environment for accounts, sessions, assessments, reviews and drafts, with Django models and migrations. Local development and integration tests use PostgreSQL too. Domain rules remain independent of Django. Per-case transaction locks serialize versions, drafts and officer decisions; database triggers reject changes to saved assessments, reviews and drafts.
+
+The sign-in and workspace follow Kountwise’s shared palette, spacing, navigation and compact form layout. CSS and JavaScript URLs carry content versions so a new template cannot silently retain an old cached stylesheet.

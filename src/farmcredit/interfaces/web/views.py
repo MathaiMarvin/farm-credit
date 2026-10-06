@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import sqlite3
 from dataclasses import replace
 from datetime import date
 from uuid import uuid4
 
-from django.conf import settings
 from django.core import signing
+from django.db import DatabaseError
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
@@ -103,10 +102,8 @@ def workspace(request):
         return HttpResponseBadRequest("Unsupported repayment demonstration.")
     reference_id = (request.POST if request.method == "POST" else request.GET).get("reference")
     try:
-        reference = (
-            AssessmentStore(settings.ASSESSMENT_DB).get(reference_id) if reference_id else None
-        )
-    except (OSError, sqlite3.Error):
+        reference = AssessmentStore().get(reference_id) if reference_id else None
+    except DatabaseError:
         return render(
             request,
             "farmcredit/saved_assessments.html",
@@ -153,9 +150,7 @@ def workspace(request):
                 form.cleaned_data["price_reduction"], form.cleaned_data["harvest_reduction"]
             )
             inputs = input_snapshot(case, evidence, assumptions, mode)
-            AssessmentStore(settings.ASSESSMENT_DB).record_current_inputs(
-                "FC-001", input_fingerprint(inputs)
-            )
+            AssessmentStore().record_current_inputs("FC-001", input_fingerprint(inputs))
             if reference:
                 reference_status = (
                     "Stale for these inputs: the saved version has different inputs, sources or policy."
@@ -183,12 +178,12 @@ def workspace(request):
                 )
         except ValueError as error:
             form.add_error(None, str(error))
-        except (OSError, sqlite3.Error):
+        except DatabaseError:
             form.add_error(None, "Current case state could not be saved. Try calculating again.")
     elif request.method == "POST":
         try:
-            AssessmentStore(settings.ASSESSMENT_DB).record_current_inputs("FC-001", None)
-        except (OSError, sqlite3.Error):
+            AssessmentStore().record_current_inputs("FC-001", None)
+        except DatabaseError:
             form.add_error(None, "Current case state could not be saved. Try again.")
     context = {
         "case": case,

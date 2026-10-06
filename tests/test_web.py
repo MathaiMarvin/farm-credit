@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Exercise the real form-to-calculation path without a database."""
+"""Exercise authenticated web flows in the isolated PostgreSQL test database."""
 
 import os
 from dataclasses import replace
@@ -12,23 +12,26 @@ import django
 django.setup()
 
 from django.contrib.staticfiles import finders
-from django.test import Client, SimpleTestCase, override_settings
+from django.test import Client, TransactionTestCase, override_settings
 
 from farmcredit.adapters.demo import load_demo_evidence
 
 
-@override_settings(ALLOWED_HOSTS=["testserver"])
-class WorkspaceTests(SimpleTestCase):
+@override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
+class AuthenticatedWebTests(TransactionTestCase):
+    databases = {"default"}
+
     def setUp(self):
-        from pathlib import Path
-        from tempfile import TemporaryDirectory
+        from django.contrib.auth import get_user_model
 
-        self.directory = TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        settings = override_settings(ASSESSMENT_DB=Path(self.directory.name) / "saved.sqlite3")
-        settings.enable()
-        self.addCleanup(settings.disable)
+        model = get_user_model()
+        model.objects.all().delete()
+        self.user = model.objects.create_user("workspace-reader", password="OnlyForTests-4839!")
+        self.client.force_login(self.user)
 
+
+@override_settings(ALLOWED_HOSTS=["testserver"])
+class WorkspaceTests(AuthenticatedWebTests):
     def test_packaged_assets_are_available(self):
         for asset in ("workspace.css", "workspace.js", "vendor/htmx.min.js", "vendor/htmx.LICENSE"):
             with self.subTest(asset=asset):
@@ -173,6 +176,7 @@ class WorkspaceTests(SimpleTestCase):
 
     def test_csrf_is_required_and_valid_token_is_accepted(self):
         client = Client(enforce_csrf_checks=True)
+        client.force_login(self.user)
         self.assertEqual(
             client.post(
                 "/",
@@ -288,17 +292,7 @@ class WorkspaceTests(SimpleTestCase):
 
 
 @override_settings(ALLOWED_HOSTS=["testserver"])
-class SavedAssessmentWebTests(SimpleTestCase):
-    def setUp(self):
-        from pathlib import Path
-        from tempfile import TemporaryDirectory
-
-        self.directory = TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        settings = override_settings(ASSESSMENT_DB=Path(self.directory.name) / "saved.sqlite3")
-        settings.enable()
-        self.addCleanup(settings.disable)
-
+class SavedAssessmentWebTests(AuthenticatedWebTests):
     def calculate(self, **changes):
         import html
         import re
@@ -323,20 +317,24 @@ class SavedAssessmentWebTests(SimpleTestCase):
         detail = self.client.get(saved.url)
         body = detail.content.decode()
         self.assertLess(body.index('id="saved-result"'), body.index('id="review-heading"'))
-        self.assertContains(detail, "Sign in to review")
-        self.assertContains(detail, "Officer sign in")
+        self.assertContains(detail, "advisory-review permission is required")
+        self.assertContains(detail, "Sign out")
         self.assertNotContains(detail, "Complete saved snapshot")
         history = self.client.get("/assessments/")
         self.assertContains(history, "Cash gap from 2027-08-15")
         self.assertContains(history, "Awaiting officer review")
         self.assertContains(history, "Open assessment")
 
-    def test_navigation_and_sign_in_are_available_before_saving(self):
-        for url in ("/", "/assessments/", "/accounts/login/"):
+    def test_workspace_navigation_is_only_present_after_sign_in(self):
+        for url in ("/", "/assessments/"):
             response = self.client.get(url)
             self.assertContains(response, 'aria-label="Workspace sections"')
-            self.assertContains(response, "Officer sign in")
+            self.assertContains(response, "Sign out")
             self.assertContains(response, 'href="#main"')
+        login = Client().get("/accounts/login/")
+        self.assertContains(login, "Sign in to access farmer cases and assessments.")
+        self.assertNotContains(login, 'aria-label="Workspace sections"')
+        self.assertNotContains(login, "FC-001")
         self.assertContains(self.client.get("/assessments/"), "Start with the household case")
 
     def test_invalid_stress_setting_opens_optional_controls(self):
@@ -386,13 +384,14 @@ class SavedAssessmentWebTests(SimpleTestCase):
             self.client.post("/assessments/save/", {"calculation": token + "tamper"}).status_code,
             400,
         )
-        with patch(
-            "farmcredit.interfaces.web.saved_views.signing.loads",
-            side_effect=signing.SignatureExpired,
-        ):
-            self.assertEqual(
-                self.client.post("/assessments/save/", {"calculation": token}).status_code, 400
-            )
+        import time
+
+        payload = signing.loads(token, salt="assessment-save")
+        with patch("django.core.signing.time.time", return_value=time.time() - 1801):
+            expired = signing.dumps(payload, salt="assessment-save")
+        self.assertEqual(
+            self.client.post("/assessments/save/", {"calculation": expired}).status_code, 400
+        )
         self.assertContains(self.client.get("/assessments/"), "No assessments saved yet")
 
     def test_invalid_calculation_has_no_save_action(self):
@@ -401,12 +400,12 @@ class SavedAssessmentWebTests(SimpleTestCase):
         self.assertNotContains(response, 'id="save-assessment-form"')
 
     def test_save_failure_preserves_retry_token(self):
-        import sqlite3
+        from django.db import OperationalError
 
         _, token = self.calculate()
         with patch(
             "farmcredit.interfaces.web.saved_views.AssessmentStore.save",
-            side_effect=sqlite3.OperationalError("unavailable"),
+            side_effect=OperationalError("unavailable"),
         ):
             response = self.client.post("/assessments/save/", {"calculation": token})
         self.assertContains(response, "Retry save", status_code=503)
@@ -462,41 +461,13 @@ class SavedAssessmentWebTests(SimpleTestCase):
 @override_settings(
     ALLOWED_HOSTS=["testserver"], PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"]
 )
-class OfficerReviewWebTests(SimpleTestCase):
-    databases = {"default"}
-
-    @classmethod
-    def setUpClass(cls):
-        from pathlib import Path
-        from tempfile import TemporaryDirectory
-
-        from django.core.management import call_command
-        from django.db import connections
-
-        super().setUpClass()
-        cls.auth_directory = TemporaryDirectory()
-        connection = connections["default"]
-        connection.close()
-        cls.original_db = connection.settings_dict["NAME"]
-        connection.settings_dict["NAME"] = Path(cls.auth_directory.name) / "auth.sqlite3"
-        call_command("migrate", verbosity=0)
-
-    @classmethod
-    def tearDownClass(cls):
-        from django.db import connections
-
-        connection = connections["default"]
-        connection.close()
-        connection.settings_dict["NAME"] = cls.original_db
-        cls.auth_directory.cleanup()
-        super().tearDownClass()
-
+class OfficerReviewWebTests(AuthenticatedWebTests):
     def setUp(self):
         from django.contrib.auth import get_user_model
         from django.contrib.auth.models import Permission
         from django.contrib.contenttypes.models import ContentType
 
-        SavedAssessmentWebTests.setUp(self)
+        super().setUp()
         model = get_user_model()
         model.objects.all().delete()
         self.officer = model.objects.create_user(
@@ -511,9 +482,11 @@ class OfficerReviewWebTests(SimpleTestCase):
         )
         self.officer.user_permissions.add(permission)
         self.other = model.objects.create_user("reader", password="OnlyForTests-4839!")
+        self.client.force_login(self.officer)
         _, token = SavedAssessmentWebTests.calculate(self)
         self.detail_url = self.client.post("/assessments/save/", {"calculation": token}).url
         self.review_url = self.detail_url + "review/"
+        self.client.logout()
 
     calculate = SavedAssessmentWebTests.calculate
 
@@ -700,3 +673,123 @@ class OfficerReviewWebTests(SimpleTestCase):
         self.assertEqual(
             self.client.post(self.review_url, {"decision": "approved"}).status_code, 403
         )
+
+
+@override_settings(ALLOWED_HOSTS=["testserver"])
+class WorkspaceAccessTests(AuthenticatedWebTests):
+    def test_anonymous_routes_cannot_read_or_write_case_data(self):
+        from uuid import uuid4
+
+        anonymous = Client()
+        urls = [
+            "/",
+            "/assessments/",
+            "/assessments/save/",
+            f"/assessments/{uuid4()}/",
+            f"/assessments/{uuid4()}/review/",
+        ]
+        with patch("farmcredit.interfaces.web.saved_views.AssessmentStore") as store:
+            for url in urls:
+                for method in (anonymous.get, anonymous.post):
+                    with self.subTest(url=url, method=method.__name__):
+                        response = method(url)
+                        self.assertEqual(response.status_code, 302)
+                        self.assertTrue(response.url.startswith("/accounts/login/?next="))
+                        self.assertNotContains(response, "FC-001", status_code=302)
+                        self.assertIn("no-store", response["Cache-Control"])
+            store.assert_not_called()
+
+    def test_expired_htmx_session_navigates_to_sign_in(self):
+        response = Client().post("/?repayment_mode=monthly", HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 401)
+        self.assertIn("/accounts/login/?next=", response["HX-Redirect"])
+        self.assertIn("repayment_mode", response["HX-Redirect"])
+        self.assertNotIn("Location", response)
+
+    def test_login_redirects_safely_and_logout_revokes_access(self):
+        self.client.logout()
+        for target, expected in (
+            ("/assessments/", "/assessments/"),
+            ("https://untrusted.example/", "/"),
+        ):
+            response = self.client.post(
+                "/accounts/login/",
+                {
+                    "username": "workspace-reader",
+                    "password": "OnlyForTests-4839!",
+                    "next": target,
+                },
+            )
+            self.assertEqual(response.url, expected)
+            self.assertEqual(self.client.get("/accounts/login/").url, "/")
+            self.assertEqual(self.client.post("/accounts/logout/").url, "/accounts/login/")
+            self.assertEqual(self.client.get("/assessments/").status_code, 302)
+
+    def test_invalid_login_does_not_reveal_workspace(self):
+        response = Client().post(
+            "/accounts/login/",
+            {
+                "username": "workspace-reader",
+                "password": "wrong-password",
+            },
+        )
+        self.assertContains(response, "Sign-in failed")
+        self.assertNotContains(response, 'aria-label="Workspace sections"')
+        self.assertNotContains(response, "FC-001")
+
+    def test_new_views_require_authentication_by_default(self):
+        from django.contrib.auth.models import AnonymousUser
+        from django.http import HttpResponse
+        from django.test import RequestFactory
+
+        from farmcredit.interfaces.web.middleware import WorkspaceLoginRequiredMiddleware
+
+        request = RequestFactory().get("/future-case-page/")
+        request.user = AnonymousUser()
+        response = WorkspaceLoginRequiredMiddleware(lambda request: HttpResponse()).process_view(
+            request,
+            lambda request: HttpResponse("private case"),
+            (),
+            {},
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_expired_mutations_return_to_readable_pages_after_login(self):
+        from urllib.parse import parse_qs, urlsplit
+        from uuid import uuid4
+
+        assessment_id = uuid4()
+        anonymous = Client()
+        save = anonymous.post("/assessments/save/")
+        review = anonymous.post(f"/assessments/{assessment_id}/review/")
+        self.assertEqual(parse_qs(urlsplit(save.url).query)["next"], ["/"])
+        self.assertEqual(
+            parse_qs(urlsplit(review.url).query)["next"], [f"/assessments/{assessment_id}/"]
+        )
+
+
+class AssetVersionTests(TransactionTestCase):
+    def test_asset_content_change_produces_a_new_url(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from farmcredit.interfaces.web.templatetags.assets import asset_url
+
+        with TemporaryDirectory() as directory:
+            asset = Path(directory) / "style.css"
+            asset.write_text("body { color: red; }")
+            with patch(
+                "farmcredit.interfaces.web.templatetags.assets.finders.find",
+                return_value=str(asset),
+            ):
+                first = asset_url("farmcredit/workspace.css")
+                self.assertEqual(first, asset_url("farmcredit/workspace.css"))
+                asset.write_text("body { color: green; }")
+                self.assertNotEqual(first, asset_url("farmcredit/workspace.css"))
+
+    def test_login_references_content_versioned_assets(self):
+        from farmcredit.interfaces.web.templatetags.assets import asset_url
+
+        response = self.client.get("/accounts/login/")
+        self.assertContains(response, asset_url("farmcredit/workspace.css"))
+        self.assertContains(response, asset_url("farmcredit/workspace.js"))

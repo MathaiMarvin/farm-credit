@@ -24,3 +24,10 @@ for (const eventName of [
     document.querySelector("#request-error").hidden = false;
   });
 }
+
+const loginError = document.querySelector("#login-error");
+if (loginError) loginError.focus();
+
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted && document.querySelector(".sidebar")) window.location.reload();
+});

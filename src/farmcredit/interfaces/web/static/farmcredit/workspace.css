@@ -809,10 +809,6 @@ footer a {
   text-decoration: none;
   margin-top: 16px;
 }
-.login-card {
-  max-width: 480px;
-  margin: 24px auto;
-}
 .login-form {
   margin-top: 24px;
 }
@@ -850,3 +846,107 @@ footer a {
 .account-actions, .sidebar nav a, summary, .fine-print, .help, .line-items dt, .line-items dd {
   font-size: 13px;
 }
+
+/* Public sign-in is separate from the authenticated workspace. */
+.signin-layout {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 48% 52%;
+  background: white;
+}
+.signin-story {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 48px;
+  padding: 44px 8%;
+  background: var(--navy);
+  color: #c5cde3;
+}
+.signin-story .brand, .signin-story h2 {
+  color: white;
+}
+.signin-story .brand-mark {
+  color: var(--navy);
+}
+.signin-story .brand-dot, .signin-story .eyebrow, .signin-story h2 span {
+  color: var(--brand);
+}
+.signin-introduction h2 {
+  margin: 24px 0;
+  font-size: clamp(32px, 3.7vw, 54px);
+  line-height: 1.15;
+  letter-spacing: -1.5px;
+}
+.signin-introduction > p:last-child {
+  max-width: 380px;
+  font-size: 17px;
+  line-height: 1.8;
+}
+.signin-caption {
+  font-size: 14px;
+}
+.signin-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 64px 32px 24px;
+}
+.signin-content {
+  width: 100%;
+  max-width: 380px;
+  margin: auto;
+}
+.signin-content h1 {
+  margin: 16px 0;
+  font-size: 32px;
+}
+.signin-content .subtitle {
+  font-size: 16px;
+}
+.signin-content .login-form {
+  margin-top: 32px;
+}
+.signin-content input {
+  font-size: 16px;
+  min-height: 48px;
+}
+.signin-content .primary {
+  margin-top: 12px;
+  min-height: 50px;
+}
+.signin-help {
+  border-top: 1px solid var(--border);
+  margin-top: 30px;
+  padding-top: 24px;
+  color: var(--muted);
+}
+.signin-demo {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.signin-footer {
+  margin-top: 48px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+@media (max-width: 760px) {
+  .signin-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .signin-story {
+    padding: 24px;
+  }
+  .signin-introduction, .signin-caption {
+    display: none;
+  }
+  .signin-main {
+    padding: 40px 24px 24px;
+  }
+}
+
+.signin-icon { display: inline-flex; padding: 14px; border-radius: 12px; background: var(--tint); color: var(--green); margin-bottom: 24px; }

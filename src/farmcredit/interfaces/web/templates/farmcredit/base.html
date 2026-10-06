@@ -1,4 +1,4 @@
-{% load static %}
+{% load assets %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -8,11 +8,12 @@
   <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
   <title>{% block title %}Household FC-001{% endblock %} · FarmCredit</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="{% static 'farmcredit/workspace.css' %}">
-  <script src="{% static 'farmcredit/vendor/htmx.min.js' %}" defer></script>
-  <script src="{% static 'farmcredit/workspace.js' %}" defer></script>
+  <link rel="stylesheet" href="{% asset_url 'farmcredit/workspace.css' %}">
+  <script src="{% asset_url 'farmcredit/vendor/htmx.min.js' %}" defer></script>
+  <script src="{% asset_url 'farmcredit/workspace.js' %}" defer></script>
 </head>
 <body>
+{% block body %}
   <a class="skip-link" href="#main">Skip to content</a>
   <aside class="sidebar" aria-label="Workspace navigation">
     <a class="brand" href="{% url 'workspace' %}"><span class="brand-mark" aria-hidden="true">f</span>farmcredit<span class="brand-dot">.</span></a>
@@ -35,5 +36,6 @@
       <footer>FarmCredit · Human-reviewed agricultural advisory <a href="https://github.com/MathaiMarvin/farm-credit/blob/main/LICENSE">AGPLv3 licence ↗</a></footer>
     </main>
   </div>
+{% endblock %}
 </body>
 </html>
