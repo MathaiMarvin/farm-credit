@@ -17,9 +17,15 @@ uv run --locked farmcredit
 
 Open http://127.0.0.1:8000. Change the receipt date from 10 September 2027 to
 15 October 2027 to inspect a repayment timing shortfall. Price can also be
-changed. All data is synthetic; changes are not saved. No database or external
-credentials are needed. The server binds to loopback and uses development
-settings; authentication and production deployment are outside this step.
+changed. All data is synthetic. Select **Save assessment** after calculating,
+then reopen the immutable version from **Saved assessments**. Use **Compare
+with current case** to check for changed inputs, sources or calculation policy.
+SQLite storage is created automatically at `.local/assessments.sqlite3` (ignored
+by Git); set `FARMCREDIT_ASSESSMENT_DB` to use another path. Back up that file to
+retain history. No database server or external credentials are needed. Saves
+use a signed calculation valid for 30 minutes; restarting with the default
+temporary secret requires recalculation before saving, but saved history remains.
+The server binds to loopback and uses development settings; authentication and production deployment are outside this step.
 
 ## Run the checks
 
@@ -64,8 +70,8 @@ does not prove evidence is valid. Results are not credit approvals.
 
 Every calculation input now has a source snapshot: value, unit, source, recording
 date, observed/declared/assumed basis and synthetic status. Missing, conflicting
-or mismatched sources prevent a result. Scenario edits are explicit unsaved
-assumptions; source details retain the replaced demo value. This checks provenance
+or mismatched sources prevent a result. Scenario edits remain explicit assumptions
+when saved; source details retain the replaced demo value. This checks provenance
 coverage, not truth, source freshness or whether unrecorded household debts exist.
 
 Price-only, harvest-only and combined stress tests reuse the baseline calculator.
@@ -83,7 +89,7 @@ in the data. Negative balances represent accumulated unmet obligations.
 The UI offers fixed demo schedules; importing lender records and generating
 interest schedules remain future work.
 
-Other financing arrangements, persistence, MCP tools, model execution,
+Other financing arrangements, MCP tools, model execution,
 external evidence and human approval enforcement are not implemented yet.
 No field validation or agent evaluations have been completed. The eventual
 competition entry will need those capabilities and its required submission
