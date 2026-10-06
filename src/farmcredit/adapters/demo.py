@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Synthetic records only; no customer records or external observations."""
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -58,4 +59,44 @@ def load_demo_case() -> SeasonalCase:
                 for month in range(4, 10)
             ),
         ),
+    )
+
+
+def load_monthly_case() -> SeasonalCase:
+    """Explicit fictional terms; no interest schedule is inferred."""
+    case = load_demo_case()
+    schedule = tuple(
+        CashMovement(
+            f"instalment-{month}",
+            date(2027, month, 28),
+            Decimal("-4000") if month < 9 else Decimal("-2000"),
+        )
+        for month in range(4, 10)
+    )
+    return replace(
+        case,
+        financing=replace(
+            case.financing,
+            repayment_on=date(2027, 9, 28),
+            schedule=schedule,
+            schedule_source="Synthetic cooperative monthly schedule",
+            schedule_version="demo-v1",
+        ),
+        coverage_through=date(2027, 9, 30),
+    )
+
+
+def load_monthly_evidence() -> tuple[EvidenceRecord, ...]:
+    case = load_monthly_case()
+    return tuple(
+        EvidenceRecord(
+            record_id=f"monthly:{item.field}",
+            input=item,
+            source=f"Synthetic monthly planning worksheet; {case.financing.schedule_source} "
+            f"({case.financing.schedule_version})",
+            recorded_on=DEMO_RECORDED_ON,
+            basis=EvidenceBasis.ASSUMED,
+            synthetic=True,
+        )
+        for item in case_inputs(case)
     )

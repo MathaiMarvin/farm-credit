@@ -3,9 +3,10 @@
   <div class="calculation-body">
     <form action="{% url 'workspace' %}" method="post" hx-post="{% url 'workspace' %}" hx-target="#calculation" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#busy" novalidate>
       {% csrf_token %}
+      <input type="hidden" name="repayment_mode" value="{{ repayment_mode }}">
       {% if form.errors %}<div class="form-error" role="alert" tabindex="-1" id="form-errors"><strong>We need a correction before calculating.</strong>{{ form.non_field_errors }}{% for field in form %}{% if field.errors %}<div id="{{ field.auto_id }}_error">{% for error in field.errors %}<p><a href="#{{ field.id_for_label }}">{{ field.label }}: {{ error }}</a></p>{% endfor %}</div>{% endif %}{% endfor %}</div>{% endif %}
       {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}<p class="help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</p></div>{% endfor %}
-      <p class="date-hint">Repayment is due <strong>{{ case.financing.repayment_on|date:"j F Y" }}</strong>. Try a receipt date after that deadline to inspect the timing gap.</p>
+      <p class="date-hint">{% if monthly %}Monthly instalments start on {{ schedule_rows.0.on|date:"j F Y" }}. The final instalment is due{% else %}Repayment is due{% endif %} <strong>{{ case.financing.repayment_on|date:"j F Y" }}</strong>. Try a receipt date after that deadline to inspect the timing gap.</p>
       <button class="primary" type="submit">Calculate cash position <span aria-hidden="true">→</span></button>
       <p id="busy" class="htmx-indicator" role="status">Calculating cash position…</p>
     </form>
@@ -23,8 +24,21 @@
       <div class="result-panel {% if result.shortfalls %}has-shortfall{% endif %}" tabindex="-1" id="result-summary">
         <p class="eyebrow">Calculation result</p>
         {% if shortfall_amount %}<h3>Repayment timing shortfall</h3><p>Cash falls short by <strong>KSh {{ shortfall_amount|floatformat:"2g" }}</strong> on {{ case.financing.repayment_on|date:"j M Y" }}.</p>{% elif result.shortfalls %}<h3>Earlier cash shortfall</h3><p>A later surplus does not cover obligations due before money arrives.</p>{% else %}<h3>No shortfall in this scenario</h3><p>The stated cash flows cover the repayment when it is due.</p>{% endif %}
+        {% if monthly %}
+        <p>Balance after the final instalment: <strong>KSh {{ result.cash_after_repayment|floatformat:"2g" }}</strong>.</p>
+        <p class="fine-print">Negative balances are accumulated unmet obligations, not available borrowing. Later receipts do not erase an earlier funding gap.</p>
+        {% if result.shortfalls %}<p>First cash gap: {{ result.shortfalls.0.on|date:"j M Y" }} · KSh {{ result.shortfalls.0.amount|floatformat:"2g" }}.</p>{% endif %}
+        <div id="repayment-positions">
+        {% for position in result.repayments %}
+          <details><summary>{{ position.on|date:"j M Y" }} · due KSh {{ position.due|floatformat:"2g" }}{% if position.cash_after < 0 %} · funding gap{% endif %}</summary>
+          <dl class="line-items"><div><dt>Before instalment</dt><dd>KSh {{ position.cash_before|floatformat:"2g" }}</dd></div><div><dt>After instalment</dt><dd>KSh {{ position.cash_after|floatformat:"2g" }}</dd></div></dl>
+          </details>
+        {% endfor %}
+        </div>
+        {% else %}
         <dl class="line-items"><div><dt>Available before repayment</dt><dd>KSh {{ result.cash_before_repayment|floatformat:"2g" }}</dd></div><div><dt>Proposed repayment</dt><dd>KSh {{ repayment_amount|floatformat:"2g" }}</dd></div><div class="total"><dt>After obligations due</dt><dd>KSh {{ result.cash_after_repayment|floatformat:"2g" }}</dd></div></dl>
         <p class="fine-print">Calculated for receipt on {{ case.sale.received_on|date:"j M Y" }} at KSh {{ case.sale.price_per_kg|floatformat:2 }}/kg. Coverage: {{ result.coverage|floatformat:2 }}×.</p>
+        {% endif %}
       </div>
       {% if result.future_movements %}<div class="future-note"><strong>Expected after the deadline</strong>{% for movement in result.future_movements %}<p>KSh {{ movement.amount|floatformat:"2g" }} on {{ movement.on|date:"j M Y" }} is excluded from cash available for this repayment.</p>{% endfor %}</div>{% endif %}
       <details><summary>Inspect dated cash balances</summary><div class="table-scroll"><table><caption>Projected cash; negative amounts mean unmet obligations.</caption><thead><tr><th scope="col">Date</th><th scope="col">Balance (KSh)</th></tr></thead><tbody>{% for balance in result.balances %}<tr><td>{{ balance.on|date:"j M Y" }}</td><td>{{ balance.amount|floatformat:"2g" }}</td></tr>{% endfor %}</tbody></table></div></details>
@@ -38,7 +52,7 @@
           <p>Price reduced {{ scenario.assumptions.price_reduction }}%; gross harvest reduced {{ scenario.assumptions.harvest_reduction }}%.</p>
           <p>Test price: KSh {{ scenario.case.sale.price_per_kg|floatformat:2 }}/kg. Test gross harvest: {{ scenario.case.sale.gross_kg }} kg.</p>
           {% if scenario.error %}<p class="form-error">{{ scenario.error }}</p>{% else %}
-          <dl class="line-items"><div><dt>Available before repayment</dt><dd>KSh {{ scenario.cashflow.cash_before_repayment|floatformat:"2g" }}</dd></div><div><dt>After repayment</dt><dd>KSh {{ scenario.cashflow.cash_after_repayment|floatformat:"2g" }}</dd></div></dl>
+          <dl class="line-items"><div><dt>Before final repayment</dt><dd>KSh {{ scenario.cashflow.cash_before_repayment|floatformat:"2g" }}</dd></div><div><dt>After final repayment</dt><dd>KSh {{ scenario.cashflow.cash_after_repayment|floatformat:"2g" }}</dd></div></dl>
           <p>Negative balances mean unmet obligations.</p>
           <ul>{% for balance in scenario.cashflow.shortfalls %}<li>{{ balance.on|date:"j M Y" }}: KSh {{ balance.amount|floatformat:"2g" }}</li>{% empty %}<li>No dated cash shortfalls.</li>{% endfor %}</ul>
           {% endif %}
