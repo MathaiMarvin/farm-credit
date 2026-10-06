@@ -68,6 +68,11 @@ or mismatched sources prevent a result. Scenario edits are explicit unsaved
 assumptions; source details retain the replaced demo value. This checks provenance
 coverage, not truth, source freshness or whether unrecorded household debts exist.
 
+Price-only, harvest-only and combined stress tests reuse the baseline calculator.
+The editable 20% defaults are illustrative assumptions, not calibrated forecasts.
+Retained food and losses stay fixed; impossible harvest scenarios show no result.
+Baseline evidence remains unchanged.
+
 Other financing arrangements, persistence, MCP tools, model execution,
 external evidence and human approval enforcement are not implemented yet.
 No field validation or agent evaluations have been completed. The eventual

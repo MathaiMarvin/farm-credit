@@ -18,3 +18,22 @@ class ScenarioForm(forms.Form):
         widget=forms.NumberInput(attrs={"step": "0.01", "inputmode": "decimal"}),
         help_text="A synthetic assumption, not a live market quotation.",
     )
+
+    price_reduction = forms.DecimalField(
+        label="Stress: sale price reduction (%)",
+        min_value=0,
+        max_value=100,
+        max_digits=5,
+        decimal_places=2,
+        initial=20,
+        help_text="Explicit test assumption, not a price forecast.",
+    )
+    harvest_reduction = forms.DecimalField(
+        label="Stress: gross harvest reduction (%)",
+        min_value=0,
+        max_value=100,
+        max_digits=5,
+        decimal_places=2,
+        initial=20,
+        help_text="Retained food and losses stay fixed. This is not a yield prediction.",
+    )
