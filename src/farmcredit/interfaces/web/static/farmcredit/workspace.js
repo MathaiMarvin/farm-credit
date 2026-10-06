@@ -43,3 +43,11 @@ document.querySelectorAll("[data-draft-source]").forEach((link) => {
     }
   });
 });
+
+// External evidence retrieval can take several seconds; show actual pending work.
+document.querySelectorAll("[data-investigation-form]").forEach((form) => {
+  form.addEventListener("submit", () => {
+    form.querySelector("button").disabled = true;
+    form.querySelector("[data-investigation-status]").hidden = false;
+  });
+});

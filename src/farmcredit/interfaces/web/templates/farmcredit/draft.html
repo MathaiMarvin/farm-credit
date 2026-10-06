@@ -4,10 +4,24 @@
 {% if storage_error %}
   <h1>Draft unavailable</h1><p class="form-error" role="alert">{{ storage_error }}</p><a class="secondary-link" href="{% url 'assessment-history' %}">Saved assessments</a>
 {% else %}
-  <div class="page-heading"><div><p class="eyebrow">Officer review · assessment v{{ draft.assessment.version }}</p><h1>{% if snapshot.kind == 'evidence_request' %}Evidence request{% else %}Advisory{% endif %} · draft v{{ draft.version }}</h1><p class="subtitle">Inspect the evidence, then record your decision.</p></div><a class="secondary-link" href="{% url 'saved-assessment' draft.assessment_id %}">Back to assessment</a></div>
+  <div class="page-heading"><div><p class="eyebrow">Officer review · {% if draft.application_id %}application v{{ draft.application.version }}{% else %}assessment v{{ draft.assessment.version }}{% endif %}</p><h1>{% if snapshot.kind == 'evidence_request' %}Evidence request{% else %}Advisory{% endif %} · draft v{{ draft.version }}</h1><p class="subtitle">{% if snapshot.context %}{{ snapshot.context.farmer }} · {{ snapshot.context.location|default:"Location unknown" }} · {{ snapshot.context.season|default:"Season unknown" }}. {% endif %}Inspect the evidence, then record your decision.</p></div>{% if draft.application_id %}<a class="secondary-link" href="{% url 'application-intake' draft.application_id %}">Back to application</a>{% else %}<a class="secondary-link" href="{% url 'saved-assessment' draft.assessment_id %}">Back to assessment</a>{% endif %}</div>
   <p class="notice">Synthetic case. Approval records your review of this draft; the lender decides on credit.</p>
   {% if error %}<div class="form-error" role="alert" tabindex="-1" id="draft-error">{{ error }}</div>{% endif %}
-  {% if not current %}<p class="form-error" role="status">Historical draft: the case inputs, saved assessment or latest draft have changed. Open the current assessment for a new draft.</p>{% endif %}
+  {% if not current %}<p class="form-error" role="status">Historical draft: the case inputs, saved version or latest draft have changed. Open the current saved version for a new draft.</p>{% endif %}
+  {% if snapshot.institution %}
+  <section class="card calculation-body" aria-labelledby="institution-heading">
+    <p class="eyebrow">Institution records · separate from cash-flow affordability</p>
+    <h2 id="institution-heading">{% if snapshot.institution.review.status == 'checks_satisfied' %}Demo review checks satisfied{% elif snapshot.institution.review.status == 'officer_review' %}Recorded arrears need officer review{% else %}Institutional evidence needed{% endif %}</h2>
+    <p>{{ snapshot.institution.file.member_ref|default:"No institutional file linked" }} · {{ snapshot.institution.file.version }} · recorded {{ snapshot.institution.file.recorded_on }}.</p>
+    {% for check in snapshot.institution.review.checks %}<p><strong>{% if check.status == 'satisfied' %}Checked{% elif check.status == 'officer_review' %}Review needed{% else %}Evidence needed{% endif %}:</strong> {{ check.finding }}</p>{% endfor %}
+    {% if snapshot.institution.file.savings %}<p>Recorded savings: KSh {{ snapshot.institution.file.savings.balance|floatformat:"2g" }}; restricted: KSh {{ snapshot.institution.file.savings.restricted|floatformat:"2g" }}. Neither amount is added to available cash.</p>{% else %}<p>Savings balance and restrictions are unknown.</p>{% endif %}
+    <details><summary>Demo policy and evidence limits</summary><p>{{ snapshot.institution.policy.policy_id }} · {{ snapshot.institution.policy.version }} · effective {{ snapshot.institution.policy.effective_on }}.</p><p>{{ snapshot.institution.policy.source }}</p><p>Captured {{ snapshot.institution.retrieved_at }} for this investigation.</p><ul>{% for limit in snapshot.institution.review.limitations %}<li>{{ limit }}</li>{% endfor %}</ul></details>
+    <p class="fine-print">Passing these supplied demo checks is not credit eligibility or loan approval. The lender retains the decision.</p>
+  </section>
+  {% endif %}
+  {% include "farmcredit/market_panel.html" with market=snapshot.market heading_id="market-heading" %}
+  {% include "farmcredit/market_panel.html" with market=snapshot.kamis heading_id="kamis-heading" %}
+  {% include "farmcredit/weather_panel.html" with weather=snapshot.weather %}
   <section class="card calculation-body" aria-labelledby="finding-heading">
     <p class="eyebrow">Calculated finding</p>
     <h2 id="finding-heading">{% if not baseline %}More evidence or clarification needed{% elif shortfalls %}Cash needs attention{% else %}No shortfall under these assumptions{% endif %}</h2>
@@ -16,7 +30,7 @@
       <dl class="line-items"><div><dt>Cash after final repayment</dt><dd>KSh {{ baseline.cash_after_repayment|floatformat:"2g" }}</dd></div><div><dt>Stress reductions: price / harvest</dt><dd>{{ snapshot.calculation.assumptions.price_reduction }}% / {{ snapshot.calculation.assumptions.harvest_reduction }}%</dd></div></dl>
     {% endif %}
     {% if snapshot.calculation.error %}<p>{{ snapshot.calculation.error }}</p>{% endif %}
-    {% if snapshot.calculation.issues %}<ul>{% for issue in snapshot.calculation.issues %}<li>{{ issue.field }}: {{ issue.reason }}</li>{% endfor %}</ul>{% endif %}
+    {% if snapshot.calculation.issues %}<ul>{% for issue in calculation_issues %}<li>{{ issue.label }}: {{ issue.reason }}</li>{% endfor %}</ul>{% endif %}
   </section>
   <section class="card calculation-body" aria-labelledby="advisory-heading">
     <h2 id="advisory-heading">Draft advisory</h2><p class="fine-print">Check that the cited records support each statement.</p>
@@ -25,7 +39,7 @@
   </section>
   <section class="card calculation-body" aria-labelledby="details-heading">
     <h2 id="details-heading">Supporting evidence</h2>
-    <details id="draft-sources"><summary>Source records ({{ snapshot.sources|length }})</summary>{% for source in snapshot.sources %}<div id="source-{{ forloop.counter }}" class="draft-source" tabindex="-1"><h3>Source {{ forloop.counter }} · {{ source.input.field }}</h3><p>{{ source.input.value }} {{ source.input.unit }} · {{ source.basis }}{% if source.synthetic %} · synthetic{% endif %}</p><p>{{ source.source }}</p><p class="fine-print">Recorded {{ source.recorded_on }} · {{ source.record_id }}</p></div>{% empty %}<p>No source records are saved with this draft.</p>{% endfor %}</details>
+    <details id="draft-sources"><summary>Source records ({{ snapshot.sources|length }})</summary>{% for source in snapshot.sources %}<div id="source-{{ forloop.counter }}" class="draft-source" tabindex="-1">{% if source.category %}<h3>Source {{ forloop.counter }} · {{ source.record_id }}</h3><dl class="line-items">{% for key, value in source.values.items %}<div><dt>{{ key }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl><p>{{ source.basis }}{% if source.synthetic %} · synthetic{% else %} · external evidence{% endif %}</p>{% else %}<h3>Source {{ forloop.counter }} · {{ source.input.field }}</h3><p>{{ source.input.value }} {{ source.input.unit }} · {{ source.basis }}{% if source.synthetic %} · synthetic{% endif %}</p>{% endif %}<p>{{ source.source }}</p><p class="fine-print">Recorded {{ source.recorded_on }} · {{ source.record_id }}</p></div>{% empty %}<p>No source records are saved with this draft.</p>{% endfor %}</details>
     {% if baseline %}<details><summary>Repayment positions and dated balances</summary>{% for row in baseline.repayments %}<p>{{ row.on }} · due KSh {{ row.due|floatformat:"2g" }} · before KSh {{ row.cash_before|floatformat:"2g" }} · after KSh {{ row.cash_after|floatformat:"2g" }}</p>{% endfor %}<h3>Dated balances</h3>{% for row in baseline.balances %}<p>{{ row.on }} · KSh {{ row.amount|floatformat:"2g" }}</p>{% endfor %}</details>{% endif %}
     {% for scenario in snapshot.calculation.comparison.scenarios %}<details><summary>{{ scenario.label }}</summary><p>Price reduction {{ scenario.assumptions.price_reduction }}%; harvest reduction {{ scenario.assumptions.harvest_reduction }}%.</p>{% if scenario.error %}<p>Not calculated: {{ scenario.error }}</p>{% else %}<p>After final repayment: KSh {{ scenario.cashflow.cash_after_repayment|floatformat:"2g" }}.</p>{% for row in scenario.cashflow.balances %}<p>{{ row.on }} · KSh {{ row.amount|floatformat:"2g" }}</p>{% endfor %}{% endif %}</details>{% endfor %}
     <details><summary>Scope and limitations at drafting</summary><ul>{% for limitation in snapshot.limitations %}<li>{{ limitation }}</li>{% endfor %}</ul><p class="fine-print">Saved {{ draft.saved_at|date:"j M Y, H:i T" }}. Findings are preserved as saved.</p></details>

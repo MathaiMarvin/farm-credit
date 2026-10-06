@@ -1,0 +1,15 @@
+  {% if market %}
+  <section class="card calculation-body" aria-labelledby="{{ heading_id }}">
+    <p class="eyebrow">Market evidence · {{ market.source }}</p>
+    <h2 id="{{ heading_id }}">{% if market.review.status == 'stale' %}Historical price — current quote needed{% elif market.review.status == 'unavailable' %}Market evidence unavailable{% elif market.review.status == 'context_only' %}Market context — confirm the sale basis{% else %}Market price cannot be compared{% endif %}</h2>
+    <p>Officer’s assumed sale price: {% if market.assumed_price_per_kg != None %}KSh {{ market.assumed_price_per_kg|floatformat:"2g" }}/kg{% else %}unknown{% endif %}. Preserved in the calculation.</p>
+    {% if market.quote %}
+    <p><strong>{{ market.quote.market }} · {{ market.quote.commodity }} · {{ market.quote.price_type }}</strong></p>
+    <p>{{ market.quote.currency }} {{ market.quote.price }} / {{ market.quote.unit }}{% if market.review.price_per_kg %} · KSh {{ market.review.price_per_kg|floatformat:"2g" }}/kg{% endif %}.</p>
+    <p>{% if market.period == "monthly" %}Source month: {{ market.quote.observed_on|slice:":7" }} (source date {{ market.quote.observed_on }}; monthly series, not a daily offer).{% else %}Observation date: {{ market.quote.observed_on }}.{% endif %} {{ market.quote.geography }}.</p>
+    {% if market.quote.classification %}<p>Classification: {{ market.quote.classification }} · grade: {{ market.quote.grade }}.</p>{% endif %}
+    {% endif %}
+    {% for finding in market.review.findings %}<p>{{ finding }}</p>{% endfor %}
+    <details><summary>Market source and limits</summary><p><a href="{{ market.source_url }}">{{ market.source }}</a> · {% if market.license_url %}<a href="{{ market.license_url }}">{{ market.license }}</a>{% else %}{{ market.license }}{% endif %}. Captured {{ market.retrieved_at }} for this investigation.</p><p>Real external data alongside a synthetic household. The selected reference market does not establish the household’s buyer or sale location. The 90-day freshness limit is a demo convention. No transport margin, future price or alternative sale scenario is inferred.</p></details>
+  </section>
+  {% endif %}
