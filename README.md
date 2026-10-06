@@ -71,6 +71,7 @@ stable demonstration baseline. Keep workflow detail in `docs/workflow.md`.
 
 ## Structure and limits
 
+- [docs/architecture.md](docs/architecture.md): implemented layers, data flow and safeguards.
 - `src/farmcredit/domain/`: seasonal case inputs, dated KES calculations and validation.
 - `src/farmcredit/application/`: conversion from a seasonal case to cash flows.
 - `src/farmcredit/adapters/`: synthetic records, PostgreSQL repositories and Django persistence models/migrations.
@@ -109,10 +110,18 @@ Four internal capabilities are implemented: `get_case`, `get_records`,
 `assess_cashflow` and `save_draft`. They bind to one authorised saved version,
 recheck officer access, preserve evidence labels and calculate with Decimal.
 Drafts are immutable, validate citations and current inputs, and attach
-server-calculated figures. Exact retries reuse the original draft. Draft review
-UI, institution access, MCP registration and model execution remain pending.
+server-calculated figures. Exact retries reuse the original draft. Saved assessment
+pages link to draft review: a named officer can inspect citations,
+approve that exact draft or request changes. New drafts and changed inputs make
+earlier decisions historical. Draft creation is currently internal; institution
+access and model execution remain pending.
 
-Other financing arrangements, MCP tools, model execution,
+Internal `start_run`, `invoke_tool` and `run_details` operations persist actual tool
+activity for one officer and saved case. Runs enforce call/deadline limits, preserve
+failures and reuse identical call retries. Drafts must reference a calculation from
+their run. This backend tracking does not yet start a model or expose a run UI.
+
+Other financing arrangements, model execution,
 external evidence and production institution access controls are not implemented yet.
 No field validation or agent evaluations have been completed. The eventual
 competition entry will need those capabilities and its required submission
@@ -122,6 +131,25 @@ HTMX 2.0.11 is vendored from its npm release under the Zero-Clause BSD licence;
 its licence is preserved beside the script in `static/farmcredit/vendor/`.
 The remaining interface code is original. Colours follow the supplied Kountwise
 reference; typography uses the system font when Inter is not available.
+
+## MCP tools (local stdio)
+
+`uv run --locked farmcredit-mcp` exposes `get_case`, `get_records`,
+`assess_cashflow` and `save_draft` using the official MCP Python SDK.
+A trusted launcher first calls `start_run(officer_id=..., assessment_id=...)`,
+then `issue_run_token(run_id=..., officer_id=...)` from
+`farmcredit.interfaces.mcp.server`. Identity must come from the authenticated
+session. Pass the returned token as `FARMCREDIT_MCP_TOKEN` in the child process
+environment, alongside the same `FARMCREDIT_SECRET_KEY` and PostgreSQL settings
+as the issuing process. Keep tokens and secrets out of prompts, arguments and logs.
+
+The signed credential expires after 120 seconds; the existing run deadline and
+12-call limit also apply. Each call requires a UUID `operation_id`; reuse it only
+for an identical retry. Case and officer IDs are never tool arguments. A saved
+draft ends the run and still needs human review. This is a trusted local transport,
+not a public HTTP service. Tests exercise a real SDK client and stdio subprocess
+against Django's isolated PostgreSQL database. No model launcher or UI trigger
+is connected yet.
 
 ## Licence
 

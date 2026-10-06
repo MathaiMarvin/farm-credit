@@ -67,3 +67,67 @@ class Draft(models.Model):
                 condition=models.Q(version__gt=0), name="draft_positive_version"
             ),
         ]
+
+
+class DraftReview(models.Model):
+    operation_id = models.CharField(max_length=64, primary_key=True)
+    draft = models.OneToOneField(Draft, on_delete=models.PROTECT, related_name="review")
+    case_revision = models.PositiveIntegerField()
+    decision = models.CharField(max_length=20)
+    note = models.CharField(max_length=2000)
+    officer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    officer_name = models.CharField(max_length=301)
+    reviewed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(decision__in=["approved", "changes_requested"]),
+                name="draft_review_valid_decision",
+            ),
+        ]
+
+
+class AgentRun(models.Model):
+    run_id = models.UUIDField(primary_key=True)
+    assessment = models.ForeignKey(Assessment, on_delete=models.PROTECT)
+    officer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    scope_json = models.TextField()
+    case_revision = models.PositiveIntegerField()
+    status = models.CharField(max_length=20, default="active")
+    reason = models.CharField(max_length=256, blank=True)
+    started_at = models.DateTimeField(default=timezone.now)
+    finished_at = models.DateTimeField(null=True)
+    draft = models.OneToOneField(Draft, null=True, on_delete=models.PROTECT)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=["active", "completed", "incomplete"]),
+                name="run_valid_status",
+            )
+        ]
+
+
+class ToolCall(models.Model):
+    run = models.ForeignKey(AgentRun, on_delete=models.PROTECT, related_name="calls")
+    operation_id = models.UUIDField()
+    sequence = models.PositiveIntegerField()
+    tool = models.CharField(max_length=40)
+    arguments_json = models.TextField()
+    status = models.CharField(max_length=20, default="running")
+    result_json = models.TextField(null=True)
+    error = models.CharField(max_length=256, blank=True)
+    started_at = models.DateTimeField(default=timezone.now)
+    finished_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["run", "operation_id"], name="run_call_operation"),
+            models.UniqueConstraint(fields=["run", "sequence"], name="run_call_sequence"),
+            models.CheckConstraint(
+                condition=models.Q(status__in=["running", "succeeded", "failed"]),
+                name="call_valid_status",
+            ),
+        ]
+        ordering = ["sequence"]

@@ -12,6 +12,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
 from farmcredit.adapters.assessment_store import AssessmentStore
+from farmcredit.adapters.draft_reviews import draft_history
 from farmcredit.application.saved_assessments import SCHEMA_VERSION
 from farmcredit.interfaces.web.review_views import is_reviewer
 
@@ -81,6 +82,11 @@ def saved_assessment(request, assessment_id):
         store = AssessmentStore()
         saved = store.get(str(assessment_id))
         review_context = store.review_context(str(assessment_id)) if saved else {}
+        drafts = (
+            draft_history(str(assessment_id), str(request.user.pk))
+            if is_reviewer(request.user)
+            else ()
+        )
     except DatabaseError:
         logger.exception("Saved assessment unavailable")
         return render(
@@ -111,6 +117,7 @@ def saved_assessment(request, assessment_id):
         request,
         "farmcredit/saved_assessments.html",
         {
+            "drafts": drafts,
             "saved": saved,
             "snapshot": snapshot,
             "review_context": review_context,

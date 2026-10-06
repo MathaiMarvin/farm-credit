@@ -2,6 +2,7 @@
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
 
+from farmcredit.interfaces.web.draft_views import saved_draft, submit_draft_review
 from farmcredit.interfaces.web.review_views import review_assessment
 from farmcredit.interfaces.web.saved_views import (
     assessment_history,
@@ -19,6 +20,8 @@ urlpatterns = [
     ),
     path("accounts/logout/", LogoutView.as_view(), name="logout"),
     path("assessments/<uuid:assessment_id>/review/", review_assessment, name="review-assessment"),
+    path("drafts/<str:draft_id>/review/", submit_draft_review, name="review-draft"),
+    path("drafts/<str:draft_id>/", saved_draft, name="saved-draft"),
     path("assessments/", assessment_history, name="assessment-history"),
     path("assessments/save/", save_assessment, name="save-assessment"),
     path("assessments/<uuid:assessment_id>/", saved_assessment, name="saved-assessment"),

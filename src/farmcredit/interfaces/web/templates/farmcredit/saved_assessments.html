@@ -21,8 +21,22 @@
         <div><dt>Stress reductions: price / harvest</dt><dd>{{ snapshot.inputs.assumptions.price_reduction }}% / {{ snapshot.inputs.assumptions.harvest_reduction }}%</dd></div>
       </dl>
     </section>
+    {% if can_review %}
+    <section class="card calculation-body" aria-labelledby="drafts-heading">
+      <h2 id="drafts-heading">Advisory drafts</h2>
+      {% for draft in drafts %}
+      <div class="draft-history-row">
+        <div><a href="{% url 'saved-draft' draft.pk %}">Review draft v{{ draft.version }}</a><p class="fine-print">Saved {{ draft.saved_at|date:"j M Y, H:i T" }}</p></div>
+        <span class="status-label">{% if not forloop.first %}Earlier version · {% endif %}{% if draft.review %}{% if draft.review.decision == 'approved' %}Reviewed{% else %}Changes requested{% endif %}{% else %}Not reviewed{% endif %}</span>
+      </div>
+      {% empty %}<p>No advisory drafts saved for this assessment yet.</p>{% endfor %}
+      <p class="fine-print">Open the latest draft to review its advisory and evidence. Earlier decisions remain in history.</p>
+    </section>
+    {% endif %}
+    {% if not drafts or review_context.review %}
     <section class="card calculation-body" aria-labelledby="review-heading">
-      <h2 id="review-heading">Officer review</h2>
+      <h2 id="review-heading">Saved assessment review</h2>
+      <p class="fine-print">This decision applies to the saved calculation. Advisory drafts are reviewed separately.</p>
       {% if review_context.review %}
         <p><strong>{% if review_context.review.decision == "approved" %}Advisory approved{% else %}Changes requested{% endif %}</strong> by {{ review_context.review.officer_name }} · {{ review_context.review.reviewed_on|date:"j M Y, H:i T" }}.</p>
         {% if review_context.review.note %}<p>{{ review_context.review.note }}</p>{% endif %}
@@ -48,6 +62,7 @@
         </form>
       {% endif %}
     </section>
+    {% endif %}
     <section class="card calculation-body" aria-label="Supporting details"><h2>Supporting details</h2>
       <details><summary>Dated cash shortfalls</summary>
       <p class="fine-print">Negative balances represent accumulated unmet obligations.</p>

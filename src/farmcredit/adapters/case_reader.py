@@ -23,7 +23,8 @@ def _require_officer(officer_id: str):
         or not user.get_full_name().strip()
         or not user.has_perm("auth.review_assessment")
     ):
-        raise PermissionError("A named, authorised officer is required to read a case brief.")
+        raise PermissionError("A named, authorised officer is required to access this case.")
+    return user
 
 
 @dataclass(frozen=True)
