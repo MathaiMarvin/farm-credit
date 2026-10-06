@@ -12,7 +12,11 @@ from farmcredit.interfaces.web.views import workspace
 
 urlpatterns = [
     path("", workspace, name="workspace"),
-    path("accounts/login/", LoginView.as_view(template_name="farmcredit/login.html"), name="login"),
+    path(
+        "accounts/login/",
+        LoginView.as_view(template_name="farmcredit/login.html", redirect_authenticated_user=True),
+        name="login",
+    ),
     path("accounts/logout/", LogoutView.as_view(), name="logout"),
     path("assessments/<uuid:assessment_id>/review/", review_assessment, name="review-assessment"),
     path("assessments/", assessment_history, name="assessment-history"),

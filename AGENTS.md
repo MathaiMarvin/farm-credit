@@ -25,15 +25,17 @@
   ```sh
   uv run --locked ruff check .
   uv run --locked ruff format --check .
-  uv run --locked python -m unittest discover -s tests -v
+  uv run --locked farmcredit test tests -v 2 --noinput
   uv run --locked farmcredit check
   uv build
   ```
 
+- Use PostgreSQL exclusively for development, integration tests and deployment. Django’s test runner owns the isolated test database.
 - Documentation-only changes need a diff review, not new tests. CI remains required for merging.
 
 ## Git workflow
 
+- Keep changes local for user review. Do not push, open or update a PR, or merge until the user explicitly gives the go-ahead for those changes.
 - Branch `feat/…` or `fix/…` from `development`; open a focused PR back to `development`.
 - Promote a completed, verified milestone through a separate PR from `development` to `main`.
 - Never push product changes directly to shared branches, bypass required checks or force-push shared history.

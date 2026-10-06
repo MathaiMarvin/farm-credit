@@ -1,21 +1,22 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from unittest import TestCase
 from uuid import uuid4
+
+from django.contrib.auth import get_user_model
+from django.db import IntegrityError, connection, connections
+from django.test import TransactionTestCase
 
 from farmcredit.adapters.assessment_store import AssessmentStore
 from farmcredit.domain.review import Officer, ReviewRequest, validate_review
 
 
-class ReviewTests(TestCase):
+class ReviewTests(TransactionTestCase):
     def setUp(self):
-        self.directory = TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.store = AssessmentStore(Path(self.directory.name) / "review.sqlite3")
+        get_user_model().objects.create_user(
+            pk=7, username="demo-officer", first_name="Demo Officer"
+        )
+        self.store = AssessmentStore()
         self.saved = self.store.save(
             '{"case_id":"FC-001","input_fingerprint":"original","inputs":{"policy_version":"cashflow-schedules-v1"}}',
             str(uuid4()),
@@ -86,21 +87,27 @@ class ReviewTests(TestCase):
                 self.store.review(replace(self.request, officer=officer))
 
     def test_concurrent_identical_review_is_idempotent(self):
+        def review(_):
+            try:
+                return self.store.review(self.request)
+            finally:
+                connections.close_all()
+
         with ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(pool.map(lambda _: self.store.review(self.request), range(2)))
+            results = list(pool.map(review, range(2)))
         self.assertEqual(results[0], results[1])
 
     def test_conflicting_retry_and_database_mutation_are_rejected(self):
         self.store.review(self.request)
         with self.assertRaisesRegex(ValueError, "Conflicting"):
             self.store.review(replace(self.request, decision="changes_requested"))
-        with sqlite3.connect(self.store.path) as connection:
+        with connection.cursor() as cursor:
             for statement in (
-                "DELETE FROM advisory_reviews",
-                "UPDATE advisory_reviews SET note='x'",
+                "DELETE FROM persistence_review",
+                "UPDATE persistence_review SET note='x'",
             ):
-                with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
-                    connection.execute(statement)
+                with self.assertRaisesRegex(IntegrityError, "immutable"):
+                    cursor.execute(statement)
 
     def test_invalid_decision_and_excessive_note(self):
         for request in (
@@ -141,6 +148,8 @@ class ReviewTests(TestCase):
                 return self.store.review(request)
             except ValueError:
                 return None
+            finally:
+                connections.close_all()
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(submit, requests))

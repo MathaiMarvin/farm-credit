@@ -13,7 +13,7 @@ document.addEventListener("input", (event) => {
 });
 document.addEventListener("htmx:afterSwap", () => {
   const target = document.querySelector("#form-errors, #evidence-errors, #result-summary");
-  if (target) target.focus({ preventScroll: true });
+  if (target) target.focus();
 });
 for (const eventName of [
   "htmx:sendError",
@@ -24,3 +24,10 @@ for (const eventName of [
     document.querySelector("#request-error").hidden = false;
   });
 }
+
+const loginError = document.querySelector("#login-error");
+if (loginError) loginError.focus();
+
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted && document.querySelector(".sidebar")) window.location.reload();
+});
