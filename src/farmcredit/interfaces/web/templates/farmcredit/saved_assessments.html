@@ -1,23 +1,26 @@
-{% load static %}
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% if saved %}Assessment v{{ saved.version }}{% else %}Saved assessments{% endif %} · FarmCredit</title>
-  <link rel="stylesheet" href="{% static 'farmcredit/workspace.css' %}">
-</head>
-<body>
-<main class="saved-workspace">
-  <nav aria-label="Assessment navigation"><a href="{% url 'workspace' %}">← Case workspace</a><a href="{% url 'assessment-history' %}">Saved assessments</a></nav>
-  <h1>{% if saved %}Assessment v{{ saved.version }}{% else %}Saved assessments{% endif %}</h1>
-  <p class="notice">Local synthetic demo. Saved calculations are not approvals. Officer approval applies to the advisory only; the lender decides on credit.</p>
+{% extends 'farmcredit/base.html' %}
+{% block title %}{% if saved %}Assessment v{{ saved.version }}{% else %}Saved assessments{% endif %}{% endblock %}
+{% block content %}<div class="assessment-page">
+  <div class="page-heading"><div><p class="eyebrow">3 · Save and review</p><h1>{% if saved %}Assessment v{{ saved.version }}{% else %}Saved assessments{% endif %}</h1><p class="subtitle">Review the finding first. Open supporting details when you need them.</p></div><a class="secondary-link" href="{% url 'workspace' %}">Review household case</a></div>
+  <p class="notice">Synthetic records. Officer review approves the advisory only; the lender decides on credit.</p>
   {% if storage_error %}
     <p class="form-error" role="alert">{{ storage_error }}</p>
     {% if save_token %}<form action="{% url 'save-assessment' %}" method="post">{% csrf_token %}<input type="hidden" name="calculation" value="{{ save_token }}"><button class="primary" type="submit">Retry save</button></form>{% endif %}
   {% elif saved %}
     <p>{{ saved.case_id }} · saved {{ saved.saved_on|date:"j M Y, H:i T" }} · {{ snapshot.inputs.repayment_mode }} repayments</p>
-    <p class="fine-print">Historical snapshot, displayed without recalculation. Policy: {{ snapshot.inputs.policy_version }}. Changing current inputs never rewrites this version.</p>
+    <p class="fine-print">Historical snapshot, displayed without recalculation. Changing current inputs never rewrites this version.</p>
     <p><a href="{% url 'workspace' %}?reference={{ saved.assessment_id }}">Compare with current case</a></p>
+    <section class="card calculation-body" aria-labelledby="saved-result">
+      <p class="eyebrow">Saved calculation</p><h2 id="saved-result">{% if snapshot.shortfalls %}Cash needs attention{% else %}No shortfall under these assumptions{% endif %}</h2>
+      {% if snapshot.shortfalls %}<p class="finding">First cash gap: {{ snapshot.shortfalls.0.on }} · KSh {{ snapshot.shortfalls.0.amount|floatformat:"2g" }}. A later surplus does not cover earlier obligations.</p>{% else %}<p class="finding">The recorded cash flows cover the scheduled repayments.</p>{% endif %}
+      <dl class="line-items">
+        <div><dt>Cash before final repayment</dt><dd>KSh {{ snapshot.result.cash_before_repayment|floatformat:"2g" }}</dd></div>
+        <div><dt>Cash after final repayment</dt><dd>KSh {{ snapshot.result.cash_after_repayment|floatformat:"2g" }}</dd></div>
+        <div><dt>Expected sale receipt</dt><dd>{{ snapshot.inputs.case.sale.received_on }}</dd></div>
+        <div><dt>Assumed sale price</dt><dd>KSh {{ snapshot.inputs.case.sale.price_per_kg|floatformat:"2g" }}/kg</dd></div>
+        <div><dt>Stress reductions: price / harvest</dt><dd>{{ snapshot.inputs.assumptions.price_reduction }}% / {{ snapshot.inputs.assumptions.harvest_reduction }}%</dd></div>
+      </dl>
+    </section>
     <section class="card calculation-body" aria-labelledby="review-heading">
       <h2 id="review-heading">Officer review</h2>
       {% if review_context.review %}
@@ -29,11 +32,10 @@
         <p class="form-error">Review unavailable: compare with the current case and calculate again. Save a new version if inputs changed or a newer version exists.</p>
       {% endif %}
       {% if user.is_authenticated %}
-        <p>Signed in as {{ user.get_full_name|default:user.username }}.</p>
-        <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button type="submit">Sign out</button></form>
         {% if not can_review %}<p>A named account with advisory-review permission is required.</p>{% endif %}
-      {% else %}
-        <p><a href="{% url 'login' %}?next={% url 'saved-assessment' saved.assessment_id %}">Sign in to review</a></p>
+      {% elif review_context.current and not review_context.review %}
+        <p>Continue with your officer account to record a named review.</p>
+        <a class="primary action-link" href="{% url 'login' %}?next={% url 'saved-assessment' saved.assessment_id %}">Sign in to review</a>
       {% endif %}
       {% if review_token %}
         <form action="{% url 'review-assessment' saved.assessment_id %}" method="post">
@@ -46,18 +48,10 @@
         </form>
       {% endif %}
     </section>
-    <section class="card calculation-body" aria-labelledby="saved-result">
-      <h2 id="saved-result">Saved calculation</h2>
-      <dl class="line-items">
-        <div><dt>Cash before final repayment</dt><dd>KSh {{ snapshot.result.cash_before_repayment|floatformat:"2g" }}</dd></div>
-        <div><dt>Cash after final repayment</dt><dd>KSh {{ snapshot.result.cash_after_repayment|floatformat:"2g" }}</dd></div>
-        <div><dt>Expected sale receipt</dt><dd>{{ snapshot.inputs.case.sale.received_on }}</dd></div>
-        <div><dt>Assumed sale price</dt><dd>KSh {{ snapshot.inputs.case.sale.price_per_kg|floatformat:"2g" }}/kg</dd></div>
-        <div><dt>Stress reductions: price / harvest</dt><dd>{{ snapshot.inputs.assumptions.price_reduction }}% / {{ snapshot.inputs.assumptions.harvest_reduction }}%</dd></div>
-      </dl>
-      <h3>Dated cash shortfalls</h3>
+    <section class="card calculation-body" aria-label="Supporting details"><h2>Supporting details</h2>
+      <details><summary>Dated cash shortfalls</summary>
       <p class="fine-print">Negative balances represent accumulated unmet obligations.</p>
-      <ul>{% for balance in snapshot.shortfalls %}<li>{{ balance.on }}: KSh {{ balance.amount|floatformat:"2g" }}</li>{% empty %}<li>No shortfall under the saved assumptions.</li>{% endfor %}</ul>
+      <ul>{% for balance in snapshot.shortfalls %}<li>{{ balance.on }}: KSh {{ balance.amount|floatformat:"2g" }}</li>{% empty %}<li>No shortfall under the saved assumptions.</li>{% endfor %}</ul></details>
       <details><summary>Saved repayment positions</summary>
         {% for row in snapshot.result.repayments %}<p>{{ row.on }} · due KSh {{ row.due|floatformat:"2g" }} · before KSh {{ row.cash_before|floatformat:"2g" }} · after KSh {{ row.cash_after|floatformat:"2g" }}</p>{% endfor %}
       </details>
@@ -78,12 +72,19 @@
         <p><strong>{{ record.input.field }}</strong>: {{ record.input.value }} {{ record.input.unit }}<br>{{ record.source }} · {{ record.recorded_on }} · {{ record.basis }}{% if record.synthetic %} · synthetic{% endif %}<br><small>{{ record.record_id }}</small></p>
       {% endfor %}
       </details>
-      <details><summary>Complete saved snapshot</summary><p class="fine-print">Includes the exact case, sources, schedule, stress assumptions, calculation results and policy version.</p><pre class="snapshot-json">{{ saved.snapshot_json }}</pre></details>
+
     </section>
   {% else %}
-    <p>Each version preserves the calculation as it was saved.</p>
-    <ol>{% for item in history %}<li><a href="{% url 'saved-assessment' item.assessment_id %}">{{ item.case_id }} · version {{ item.version }}</a> · {{ item.saved_on|date:"j M Y, H:i T" }}</li>{% empty %}<li>No assessments saved yet. Calculate a case, then select Save assessment.</li>{% endfor %}</ol>
+    <p class="history-intro">Your latest calculation and its review status, with earlier versions kept for reference.</p>
+    <div class="assessment-list">{% for row in history_rows %}
+      <article class="card assessment-row">
+        <div><p class="eyebrow">{% if forloop.first %}Latest saved{% else %}Earlier version{% endif %} · {{ row.snapshot.inputs.repayment_mode }} repayments</p>
+        <h2><a href="{% url 'saved-assessment' row.saved.assessment_id %}">{{ row.saved.case_id }} · version {{ row.saved.version }}</a></h2>
+        <p class="finding">{% if row.snapshot.shortfalls %}Cash gap from {{ row.snapshot.shortfalls.0.on }}{% else %}No cash shortfall under saved assumptions{% endif %}</p>
+        <p>After final repayment: <strong>KSh {{ row.snapshot.result.cash_after_repayment|floatformat:"2g" }}</strong></p>
+        <p class="fine-print">Saved {{ row.saved.saved_on|date:"j M Y, H:i T" }}</p></div>
+        <div class="assessment-action"><span class="status-label">{% if row.review.review %}{% if row.review.review.decision == 'approved' %}Advisory approved{% else %}Changes requested{% endif %}{% if not row.review.review_current %} · historical{% endif %}{% elif row.review.current %}Awaiting officer review{% else %}Needs an updated assessment{% endif %}</span><a class="secondary-link" href="{% url 'saved-assessment' row.saved.assessment_id %}">Open assessment →</a></div>
+      </article>
+    {% empty %}<section class="card calculation-body"><h2>Start with the household case</h2><p>No assessments saved yet. Calculate a case, then select Save assessment.</p><a class="primary action-link" href="{% url 'workspace' %}">Review household case →</a></section>{% endfor %}</div>
   {% endif %}
-</main>
-</body>
-</html>
+</div>{% endblock %}

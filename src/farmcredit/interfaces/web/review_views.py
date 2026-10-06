@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Authenticated review endpoint; identity always comes from the session."""
 
-import sqlite3
-
-from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core import signing
+from django.db import DatabaseError
 from django.http import HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
@@ -53,7 +51,7 @@ def review_assessment(request, assessment_id):
         Officer(str(request.user.pk), request.user.get_full_name().strip(), True),
     )
     try:
-        AssessmentStore(settings.ASSESSMENT_DB).review(review)
+        AssessmentStore().review(review)
     except ValueError as error:
         return render(
             request,
@@ -61,7 +59,7 @@ def review_assessment(request, assessment_id):
             {"error": str(error), "assessment_id": assessment_id},
             status=409,
         )
-    except (OSError, sqlite3.Error):
+    except DatabaseError:
         return render(
             request,
             "farmcredit/review_error.html",

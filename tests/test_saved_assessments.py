@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from decimal import Decimal
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from unittest import TestCase
 from uuid import uuid4
+
+from django.db import IntegrityError, connection, connections
+from django.test import TransactionTestCase
 
 from farmcredit.adapters.assessment_store import AssessmentStore
 from farmcredit.adapters.demo import DEMO_RECORDED_ON, load_monthly_case, load_monthly_evidence
@@ -18,12 +17,9 @@ from farmcredit.application.saved_assessments import (
 from farmcredit.application.stress_scenarios import StressAssumptions, compare_stress
 
 
-class SavedAssessmentTests(TestCase):
+class SavedAssessmentTests(TransactionTestCase):
     def setUp(self):
-        self.directory = TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.path = Path(self.directory.name) / "assessments.sqlite3"
-        self.store = AssessmentStore(self.path)
+        self.store = AssessmentStore()
         self.case, self.records = load_monthly_case(), load_monthly_evidence()
         self.assumptions = StressAssumptions(Decimal("20"), Decimal("20"))
         self.inputs = input_snapshot(self.case, self.records, self.assumptions, "monthly")
@@ -37,7 +33,7 @@ class SavedAssessmentTests(TestCase):
 
     def test_reopen_preserves_exact_inputs_evidence_and_results(self):
         saved = self.store.save(self.payload, str(uuid4()))
-        reopened = AssessmentStore(self.path).get(saved.assessment_id)
+        reopened = AssessmentStore().get(saved.assessment_id)
         self.assertEqual(saved, reopened)
         self.assertEqual(reopened.snapshot["inputs"], self.inputs)
         self.assertEqual(reopened.snapshot["result"]["cash_after_repayment"], "40000")
@@ -56,10 +52,15 @@ class SavedAssessmentTests(TestCase):
 
     def test_concurrent_retry_cannot_duplicate_version(self):
         operation = str(uuid4())
-        # Initialise the local schema before exercising concurrent writes.
-        self.store.history("FC-001")
+
+        def save(_):
+            try:
+                return self.store.save(self.payload, operation)
+            finally:
+                connections.close_all()
+
         with ThreadPoolExecutor(max_workers=2) as pool:
-            saved = list(pool.map(lambda _: self.store.save(self.payload, operation), range(2)))
+            saved = list(pool.map(save, range(2)))
         self.assertEqual(saved[0], saved[1])
         self.assertEqual(len(self.store.history("FC-001")), 1)
 
@@ -79,10 +80,13 @@ class SavedAssessmentTests(TestCase):
 
     def test_database_rejects_update_and_delete(self):
         self.store.save(self.payload, str(uuid4()))
-        with sqlite3.connect(self.path) as connection:
-            for statement in ("UPDATE assessments SET version = 99", "DELETE FROM assessments"):
-                with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
-                    connection.execute(statement)
+        with connection.cursor() as cursor:
+            for statement in (
+                "UPDATE persistence_assessment SET version = 99",
+                "DELETE FROM persistence_assessment",
+            ):
+                with self.assertRaisesRegex(IntegrityError, "immutable"):
+                    cursor.execute(statement)
 
     def test_fingerprint_detects_input_source_stress_and_policy_changes(self):
         baseline = input_fingerprint(self.inputs)
@@ -121,7 +125,16 @@ class SavedAssessmentTests(TestCase):
         with self.assertRaisesRegex(ValueError, "completed"):
             make_snapshot(self.inputs, blocked)
 
-    def test_unknown_id_and_unwritable_storage(self):
+    def test_unknown_id(self):
         self.assertIsNone(self.store.get(str(uuid4())))
-        with self.assertRaises(sqlite3.OperationalError):
-            AssessmentStore(Path(self.directory.name)).save(self.payload, str(uuid4()))
+
+    def test_concurrent_new_saves_receive_distinct_versions(self):
+        def save(_):
+            try:
+                return self.store.save(self.payload, str(uuid4()))
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            saved = list(pool.map(save, range(2)))
+        self.assertEqual(sorted(item.version for item in saved), [1, 2])
