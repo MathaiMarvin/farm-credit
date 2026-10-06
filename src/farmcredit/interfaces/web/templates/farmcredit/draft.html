@@ -1,0 +1,40 @@
+{% extends 'farmcredit/base.html' %}
+{% block title %}Draft review{% endblock %}
+{% block content %}<div class="assessment-page">
+{% if storage_error %}
+  <h1>Draft unavailable</h1><p class="form-error" role="alert">{{ storage_error }}</p><a class="secondary-link" href="{% url 'assessment-history' %}">Saved assessments</a>
+{% else %}
+  <div class="page-heading"><div><p class="eyebrow">Officer review · assessment v{{ draft.assessment.version }}</p><h1>{% if snapshot.kind == 'evidence_request' %}Evidence request{% else %}Advisory{% endif %} · draft v{{ draft.version }}</h1><p class="subtitle">Inspect the evidence, then record your decision.</p></div><a class="secondary-link" href="{% url 'saved-assessment' draft.assessment_id %}">Back to assessment</a></div>
+  <p class="notice">Synthetic case. Approval records your review of this draft; the lender decides on credit.</p>
+  {% if error %}<div class="form-error" role="alert" tabindex="-1" id="draft-error">{{ error }}</div>{% endif %}
+  {% if not current %}<p class="form-error" role="status">Historical draft: the case inputs, saved assessment or latest draft have changed. Open the current assessment for a new draft.</p>{% endif %}
+  <section class="card calculation-body" aria-labelledby="finding-heading">
+    <p class="eyebrow">Calculated finding</p>
+    <h2 id="finding-heading">{% if not baseline %}More evidence or clarification needed{% elif shortfalls %}Cash needs attention{% else %}No shortfall under these assumptions{% endif %}</h2>
+    {% if baseline %}
+      {% if shortfalls %}<p class="finding">First cash gap: {{ shortfalls.0.on }} · KSh {{ shortfalls.0.amount|floatformat:"2g" }}. A later surplus does not cover earlier obligations.</p>{% endif %}
+      <dl class="line-items"><div><dt>Cash after final repayment</dt><dd>KSh {{ baseline.cash_after_repayment|floatformat:"2g" }}</dd></div><div><dt>Stress reductions: price / harvest</dt><dd>{{ snapshot.calculation.assumptions.price_reduction }}% / {{ snapshot.calculation.assumptions.harvest_reduction }}%</dd></div></dl>
+    {% endif %}
+    {% if snapshot.calculation.error %}<p>{{ snapshot.calculation.error }}</p>{% endif %}
+    {% if snapshot.calculation.issues %}<ul>{% for issue in snapshot.calculation.issues %}<li>{{ issue.field }}: {{ issue.reason }}</li>{% endfor %}</ul>{% endif %}
+  </section>
+  <section class="card calculation-body" aria-labelledby="advisory-heading">
+    <h2 id="advisory-heading">Draft advisory</h2><p class="fine-print">Check that the cited records support each statement.</p>
+    {% for statement in statements %}<div class="draft-statement"><p>{{ statement.text }}</p><div class="draft-citations">{% for citation in statement.citations %}<a href="#source-{{ citation.anchor }}" data-draft-source>Source {{ citation.anchor }}<span class="sr-only">: {{ citation.record_id }}</span></a>{% endfor %}</div></div>{% empty %}<p>No advisory statements saved.</p>{% endfor %}
+    {% if snapshot.questions %}<h3>Questions to resolve</h3><ul>{% for question in snapshot.questions %}<li>{{ question }}</li>{% endfor %}</ul>{% endif %}
+  </section>
+  <section class="card calculation-body" aria-labelledby="details-heading">
+    <h2 id="details-heading">Supporting evidence</h2>
+    <details id="draft-sources"><summary>Source records ({{ snapshot.sources|length }})</summary>{% for source in snapshot.sources %}<div id="source-{{ forloop.counter }}" class="draft-source" tabindex="-1"><h3>Source {{ forloop.counter }} · {{ source.input.field }}</h3><p>{{ source.input.value }} {{ source.input.unit }} · {{ source.basis }}{% if source.synthetic %} · synthetic{% endif %}</p><p>{{ source.source }}</p><p class="fine-print">Recorded {{ source.recorded_on }} · {{ source.record_id }}</p></div>{% empty %}<p>No source records are saved with this draft.</p>{% endfor %}</details>
+    {% if baseline %}<details><summary>Repayment positions and dated balances</summary>{% for row in baseline.repayments %}<p>{{ row.on }} · due KSh {{ row.due|floatformat:"2g" }} · before KSh {{ row.cash_before|floatformat:"2g" }} · after KSh {{ row.cash_after|floatformat:"2g" }}</p>{% endfor %}<h3>Dated balances</h3>{% for row in baseline.balances %}<p>{{ row.on }} · KSh {{ row.amount|floatformat:"2g" }}</p>{% endfor %}</details>{% endif %}
+    {% for scenario in snapshot.calculation.comparison.scenarios %}<details><summary>{{ scenario.label }}</summary><p>Price reduction {{ scenario.assumptions.price_reduction }}%; harvest reduction {{ scenario.assumptions.harvest_reduction }}%.</p>{% if scenario.error %}<p>Not calculated: {{ scenario.error }}</p>{% else %}<p>After final repayment: KSh {{ scenario.cashflow.cash_after_repayment|floatformat:"2g" }}.</p>{% for row in scenario.cashflow.balances %}<p>{{ row.on }} · KSh {{ row.amount|floatformat:"2g" }}</p>{% endfor %}{% endif %}</details>{% endfor %}
+    <details><summary>Scope and limitations at drafting</summary><ul>{% for limitation in snapshot.limitations %}<li>{{ limitation }}</li>{% endfor %}</ul><p class="fine-print">Saved {{ draft.saved_at|date:"j M Y, H:i T" }}. Findings are preserved as saved.</p></details>
+  </section>
+  <section class="card calculation-body" aria-labelledby="decision-heading">
+    <h2 id="decision-heading">Your review</h2>
+    {% if review %}<p role="status"><strong>{% if review.decision == 'approved' %}{% if snapshot.kind == 'evidence_request' %}Evidence request approved{% else %}Draft approved{% endif %}{% else %}Changes requested{% endif %}</strong> by {{ review.officer_name }} · {{ review.reviewed_at|date:"j M Y, H:i T" }}.</p>{% if review.note %}<p>{{ review.note }}</p>{% endif %}{% if not review_current %}<p>This decision is historical and applies only to draft v{{ draft.version }}.</p>{% endif %}<p class="fine-print">The saved draft and this decision are preserved. Further review requires a new draft version.</p>
+    {% elif review_token %}<form action="{% url 'review-draft' draft.pk %}" method="post">{% csrf_token %}<input type="hidden" name="review_token" value="{{ review_token }}"><label for="draft-note">Review note</label><textarea id="draft-note" name="note" maxlength="2000" rows="3" aria-describedby="draft-review-help">{{ note }}</textarea><p class="fine-print" id="draft-review-help">Explain what needs changing when requesting changes. {% if snapshot.kind == 'evidence_request' %}Approval confirms the request for more evidence, not a completed cash-flow finding.{% else %}Approval confirms your review of this exact draft and its assumptions.{% endif %}</p><div class="draft-actions"><button class="primary" type="submit" name="decision" value="approved">{% if snapshot.kind == 'evidence_request' %}Approve evidence request{% else %}Approve draft v{{ draft.version }}{% endif %}</button><button type="submit" name="decision" value="changes_requested">Request changes</button></div></form>
+    {% else %}<p>Review is unavailable for this historical draft.</p>{% endif %}
+  </section>
+{% endif %}
+</div>{% endblock %}

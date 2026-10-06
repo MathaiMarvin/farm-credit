@@ -31,3 +31,15 @@ if (loginError) loginError.focus();
 window.addEventListener("pageshow", (event) => {
   if (event.persisted && document.querySelector(".sidebar")) window.location.reload();
 });
+
+const draftError = document.querySelector("#draft-error");
+if (draftError) draftError.focus();
+document.querySelectorAll("[data-draft-source]").forEach((link) => {
+  link.addEventListener("click", () => {
+    const source = document.querySelector(link.getAttribute("href"));
+    if (source) {
+      source.closest("details").open = true;
+      source.focus();
+    }
+  });
+});

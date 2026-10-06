@@ -17,6 +17,8 @@ class WorkspaceLoginRequiredMiddleware(LoginRequiredMiddleware):
                 target = reverse(
                     "saved-assessment", kwargs={"assessment_id": match.kwargs["assessment_id"]}
                 )
+            if match and match.url_name == "review-draft":
+                target = reverse("saved-draft", kwargs={"draft_id": match.kwargs["draft_id"]})
             # Signing in must return to a readable page, never a POST-only endpoint.
             response = redirect_to_login(target, self.get_login_url(view_func))
         add_never_cache_headers(response)

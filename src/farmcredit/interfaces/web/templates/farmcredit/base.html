@@ -20,7 +20,7 @@
     <div class="workspace-name"><span class="avatar" aria-hidden="true">FC</span><div>Demo cooperative<small>Farmer advisory</small></div></div>
     <nav aria-label="Workspace sections">
       <a href="{% url 'workspace' %}"{% if request.resolver_match.url_name == 'workspace' %} class="selected" aria-current="page"{% endif %}>Household case</a>
-      <a href="{% url 'assessment-history' %}"{% if request.resolver_match.url_name == 'assessment-history' or request.resolver_match.url_name == 'saved-assessment' %} class="selected" aria-current="page"{% endif %}>Saved assessments</a>
+      <a href="{% url 'assessment-history' %}"{% if request.resolver_match.url_name == 'assessment-history' or request.resolver_match.url_name == 'saved-assessment' or request.resolver_match.url_name == 'saved-draft' or request.resolver_match.url_name == 'review-draft' %} class="selected" aria-current="page"{% endif %}>Saved assessments</a>
     </nav>
     <div class="sidebar-foot"><span class="eyebrow">Built for a clearer decision</span><p>Farm records. Visible assumptions. Human judgement.</p><a href="https://github.com/MathaiMarvin/farm-credit">Source code ↗</a></div>
   </aside>
