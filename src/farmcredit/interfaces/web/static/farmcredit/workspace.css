@@ -747,3 +747,26 @@ footer a {
   gap: 12px;
   align-items: center;
 }
+
+.saved-workspace textarea {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  font: inherit;
+}
+
+.saved-workspace .card {
+  margin-top: 20px;
+}
+
+.saved-workspace button:not(.primary) {
+  min-height: 44px;
+  padding: 10px 16px;
+  margin: 8px 0 12px;
+  border: 1px solid #bdcbc2;
+  border-radius: 7px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}

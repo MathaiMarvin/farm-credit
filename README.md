@@ -12,6 +12,7 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then from
 the repository root (Python 3.10 or newer):
 
 ```sh
+uv run --locked farmcredit migrate
 uv run --locked farmcredit
 ```
 
@@ -25,7 +26,22 @@ by Git); set `FARMCREDIT_ASSESSMENT_DB` to use another path. Back up that file t
 retain history. No database server or external credentials are needed. Saves
 use a signed calculation valid for 30 minutes; restarting with the default
 temporary secret requires recalculation before saving, but saved history remains.
-The server binds to loopback and uses development settings; authentication and production deployment are outside this step.
+The server binds to loopback and uses development settings; production deployment is outside this step.
+
+To provision a named reviewer, run `uv run --locked farmcredit createofficer your-username --name "Your Name"`.
+It prompts for a password and grants advisory-review permission; there are no
+default accounts. Sign in from a saved assessment to approve that advisory or
+request changes with a reason. Review requires the latest saved version to
+match the current submitted inputs. Later submitted changes invalidate the
+current applicability of an earlier approval; historical decisions remain.
+A review applies to the advisory only, never to a loan decision.
+
+Django stores accounts and sessions in `.local/auth.sqlite3`; override with
+`FARMCREDIT_AUTH_DB`. Back up both SQLite files together. Set a persistent
+`FARMCREDIT_SECRET_KEY` in your environment to retain sessions across restarts.
+This remains a local, single-case synthetic workspace without institution-level
+access separation. Unsaved browser edits must be submitted before the server
+can register a changed case.
 
 ## Run the checks
 
@@ -90,7 +106,7 @@ The UI offers fixed demo schedules; importing lender records and generating
 interest schedules remain future work.
 
 Other financing arrangements, MCP tools, model execution,
-external evidence and human approval enforcement are not implemented yet.
+external evidence and production institution access controls are not implemented yet.
 No field validation or agent evaluations have been completed. The eventual
 competition entry will need those capabilities and its required submission
 artifacts; this screen demonstrates calculations, not an agent run.

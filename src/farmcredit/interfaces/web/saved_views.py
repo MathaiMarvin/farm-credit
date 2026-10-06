@@ -3,6 +3,7 @@
 
 import logging
 import sqlite3
+from uuid import uuid4
 
 from django.conf import settings
 from django.core import signing
@@ -13,6 +14,7 @@ from django.views.decorators.http import require_http_methods
 
 from farmcredit.adapters.assessment_store import AssessmentStore
 from farmcredit.application.saved_assessments import SCHEMA_VERSION
+from farmcredit.interfaces.web.review_views import is_reviewer
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +70,9 @@ def assessment_history(request):
 @require_http_methods(["GET"])
 def saved_assessment(request, assessment_id):
     try:
-        saved = AssessmentStore(settings.ASSESSMENT_DB).get(str(assessment_id))
+        store = AssessmentStore(settings.ASSESSMENT_DB)
+        saved = store.get(str(assessment_id))
+        review_context = store.review_context(str(assessment_id)) if saved else {}
     except (OSError, sqlite3.Error):
         logger.exception("Saved assessment unavailable")
         return render(
@@ -84,6 +88,25 @@ def saved_assessment(request, assessment_id):
         return HttpResponseBadRequest(
             "This snapshot format requires a compatible application version."
         )
+    review_token = None
+    if is_reviewer(request.user) and review_context["current"] and not review_context["review"]:
+        review_token = signing.dumps(
+            {
+                "assessment_id": saved.assessment_id,
+                "officer_id": str(request.user.pk),
+                "revision": review_context["revision"],
+                "operation_id": str(uuid4()),
+            },
+            salt="advisory-review",
+        )
     return render(
-        request, "farmcredit/saved_assessments.html", {"saved": saved, "snapshot": snapshot}
+        request,
+        "farmcredit/saved_assessments.html",
+        {
+            "saved": saved,
+            "snapshot": snapshot,
+            "review_context": review_context,
+            "review_token": review_token,
+            "can_review": is_reviewer(request.user),
+        },
     )
