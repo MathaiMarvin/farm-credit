@@ -19,6 +19,16 @@ from farmcredit.adapters.demo import load_demo_evidence
 
 @override_settings(ALLOWED_HOSTS=["testserver"])
 class WorkspaceTests(SimpleTestCase):
+    def setUp(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        self.directory = TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        settings = override_settings(ASSESSMENT_DB=Path(self.directory.name) / "saved.sqlite3")
+        settings.enable()
+        self.addCleanup(settings.disable)
+
     def test_packaged_assets_are_available(self):
         for asset in ("workspace.css", "workspace.js", "vendor/htmx.min.js", "vendor/htmx.LICENSE"):
             with self.subTest(asset=asset):
@@ -415,3 +425,246 @@ class SavedAssessmentWebTests(SimpleTestCase):
         response = self.client.get(saved.url)
         self.assertContains(response, "&lt;script&gt;")
         self.assertNotContains(response, "<script>alert")
+
+
+@override_settings(
+    ALLOWED_HOSTS=["testserver"], PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"]
+)
+class OfficerReviewWebTests(SimpleTestCase):
+    databases = {"default"}
+
+    @classmethod
+    def setUpClass(cls):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from django.core.management import call_command
+        from django.db import connections
+
+        super().setUpClass()
+        cls.auth_directory = TemporaryDirectory()
+        connection = connections["default"]
+        connection.close()
+        cls.original_db = connection.settings_dict["NAME"]
+        connection.settings_dict["NAME"] = Path(cls.auth_directory.name) / "auth.sqlite3"
+        call_command("migrate", verbosity=0)
+
+    @classmethod
+    def tearDownClass(cls):
+        from django.db import connections
+
+        connection = connections["default"]
+        connection.close()
+        connection.settings_dict["NAME"] = cls.original_db
+        cls.auth_directory.cleanup()
+        super().tearDownClass()
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Permission
+        from django.contrib.contenttypes.models import ContentType
+
+        SavedAssessmentWebTests.setUp(self)
+        model = get_user_model()
+        model.objects.all().delete()
+        self.officer = model.objects.create_user(
+            "officer",
+            password="OnlyForTests-4839!",
+            first_name="Test Officer",
+        )
+        permission, _ = Permission.objects.get_or_create(
+            content_type=ContentType.objects.get_for_model(model),
+            codename="review_assessment",
+            defaults={"name": "Can review advisory"},
+        )
+        self.officer.user_permissions.add(permission)
+        self.other = model.objects.create_user("reader", password="OnlyForTests-4839!")
+        _, token = SavedAssessmentWebTests.calculate(self)
+        self.detail_url = self.client.post("/assessments/save/", {"calculation": token}).url
+        self.review_url = self.detail_url + "review/"
+
+    calculate = SavedAssessmentWebTests.calculate
+
+    def review_token(self):
+        import html
+        import re
+
+        response = self.client.get(self.detail_url)
+        match = re.search(r'name="review_token" value="([^"]+)"', response.content.decode())
+        return html.unescape(match.group(1)) if match else None
+
+    def test_authentication_and_permission_are_required(self):
+        self.assertEqual(self.client.post(self.review_url).status_code, 302)
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.post(self.review_url).status_code, 403)
+        self.assertIsNone(self.review_token())
+
+    def test_approval_uses_session_identity_and_is_retry_safe(self):
+        self.client.force_login(self.officer)
+        token = self.review_token()
+        payload = {
+            "review_token": token,
+            "decision": "approved",
+            "note": "Reviewed assumptions.",
+            "officer_name": "Impersonated",
+        }
+        self.assertEqual(self.client.post(self.review_url, payload).status_code, 302)
+        self.assertEqual(self.client.post(self.review_url, payload).status_code, 302)
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, "Advisory approved")
+        self.assertContains(response, "Test Officer")
+        self.assertNotContains(response, "Impersonated")
+        self.assertIsNone(self.review_token())
+
+    def test_stale_open_form_cannot_approve_after_input_change(self):
+        self.client.force_login(self.officer)
+        token = self.review_token()
+        self.calculate(price_per_kg="30")
+        response = self.client.post(
+            self.review_url, {"review_token": token, "decision": "approved"}
+        )
+        self.assertContains(response, "stale", status_code=409)
+
+    def test_invalid_submitted_inputs_also_invalidate_review(self):
+        self.client.force_login(self.officer)
+        token = self.review_token()
+        self.calculate(price_per_kg="-1")
+        self.assertEqual(
+            self.client.post(
+                self.review_url,
+                {
+                    "review_token": token,
+                    "decision": "approved",
+                },
+            ).status_code,
+            409,
+        )
+
+    def test_approval_becomes_historical_when_case_changes(self):
+        self.client.force_login(self.officer)
+        self.client.post(
+            self.review_url, {"review_token": self.review_token(), "decision": "approved"}
+        )
+        self.calculate(harvest_reduction="30")
+        self.assertContains(self.client.get(self.detail_url), "Historical review")
+
+    def test_request_changes_requires_reason_and_preserves_it(self):
+        self.client.force_login(self.officer)
+        token = self.review_token()
+        self.assertEqual(
+            self.client.post(
+                self.review_url,
+                {
+                    "review_token": token,
+                    "decision": "changes_requested",
+                },
+            ).status_code,
+            409,
+        )
+        self.assertEqual(
+            self.client.post(
+                self.review_url,
+                {
+                    "review_token": token,
+                    "decision": "changes_requested",
+                    "note": "Please confirm outside debt.",
+                },
+            ).status_code,
+            302,
+        )
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, "Changes requested")
+        self.assertContains(response, "Please confirm outside debt.")
+
+    def test_wrong_officer_or_assessment_token_is_rejected(self):
+        from uuid import uuid4
+
+        from django.contrib.auth import get_user_model
+
+        self.client.force_login(self.officer)
+        token = self.review_token()
+        self.assertEqual(
+            self.client.post(
+                f"/assessments/{uuid4()}/review/",
+                {
+                    "review_token": token,
+                    "decision": "approved",
+                },
+            ).status_code,
+            400,
+        )
+        other = get_user_model().objects.create_user(
+            "second",
+            password="OnlyForTests-4839!",
+            first_name="Second Officer",
+        )
+        other.user_permissions.set(self.officer.user_permissions.all())
+        self.client.force_login(other)
+        self.assertEqual(
+            self.client.post(
+                self.review_url,
+                {
+                    "review_token": token,
+                    "decision": "approved",
+                },
+            ).status_code,
+            400,
+        )
+
+    def test_csrf_and_post_are_required(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.officer)
+        self.assertEqual(client.post(self.review_url, {"decision": "approved"}).status_code, 403)
+        self.assertEqual(client.get(self.review_url).status_code, 405)
+
+    def test_real_login_and_logout(self):
+        response = self.client.post(
+            "/accounts/login/",
+            {
+                "username": "officer",
+                "password": "OnlyForTests-4839!",
+                "next": self.detail_url,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIsNotNone(self.review_token())
+        self.assertEqual(self.client.post("/accounts/logout/").status_code, 302)
+        self.assertIsNone(self.review_token())
+
+    def test_createofficer_requires_name_and_strong_password(self):
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        with patch(
+            "farmcredit.interfaces.web.management.commands.createofficer.getpass",
+            return_value="ProvisioningTest-9837!",
+        ):
+            call_command("createofficer", "new-officer", name="Named Officer", verbosity=0)
+        user = get_user_model().objects.get(username="new-officer")
+        self.assertEqual(user.get_full_name(), "Named Officer")
+        self.assertTrue(user.has_perm("auth.review_assessment"))
+        self.assertTrue(user.check_password("ProvisioningTest-9837!"))
+
+    def test_revoked_permission_rejects_an_existing_review_form(self):
+        self.client.force_login(self.officer)
+        token = self.review_token()
+        self.officer.user_permissions.clear()
+        self.assertEqual(
+            self.client.post(
+                self.review_url,
+                {
+                    "review_token": token,
+                    "decision": "approved",
+                },
+            ).status_code,
+            403,
+        )
+
+    def test_named_account_is_required_even_with_permission(self):
+        self.officer.first_name = ""
+        self.officer.save()
+        self.client.force_login(self.officer)
+        self.assertIsNone(self.review_token())
+        self.assertEqual(
+            self.client.post(self.review_url, {"decision": "approved"}).status_code, 403
+        )

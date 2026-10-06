@@ -10,7 +10,7 @@
 <main class="saved-workspace">
   <nav aria-label="Assessment navigation"><a href="{% url 'workspace' %}">← Case workspace</a><a href="{% url 'assessment-history' %}">Saved assessments</a></nav>
   <h1>{% if saved %}Assessment v{{ saved.version }}{% else %}Saved assessments{% endif %}</h1>
-  <p class="notice">Local synthetic demo. Saved calculations are not approvals. Named officer review is not implemented.</p>
+  <p class="notice">Local synthetic demo. Saved calculations are not approvals. Officer approval applies to the advisory only; the lender decides on credit.</p>
   {% if storage_error %}
     <p class="form-error" role="alert">{{ storage_error }}</p>
     {% if save_token %}<form action="{% url 'save-assessment' %}" method="post">{% csrf_token %}<input type="hidden" name="calculation" value="{{ save_token }}"><button class="primary" type="submit">Retry save</button></form>{% endif %}
@@ -18,6 +18,34 @@
     <p>{{ saved.case_id }} · saved {{ saved.saved_on|date:"j M Y, H:i T" }} · {{ snapshot.inputs.repayment_mode }} repayments</p>
     <p class="fine-print">Historical snapshot, displayed without recalculation. Policy: {{ snapshot.inputs.policy_version }}. Changing current inputs never rewrites this version.</p>
     <p><a href="{% url 'workspace' %}?reference={{ saved.assessment_id }}">Compare with current case</a></p>
+    <section class="card calculation-body" aria-labelledby="review-heading">
+      <h2 id="review-heading">Officer review</h2>
+      {% if review_context.review %}
+        <p><strong>{% if review_context.review.decision == "approved" %}Advisory approved{% else %}Changes requested{% endif %}</strong> by {{ review_context.review.officer_name }} · {{ review_context.review.reviewed_on|date:"j M Y, H:i T" }}.</p>
+        {% if review_context.review.note %}<p>{{ review_context.review.note }}</p>{% endif %}
+        {% if not review_context.review_current %}<p class="form-error">Historical review: this version is superseded or the submitted case has changed. Recalculate and save a new version for review.</p>{% endif %}
+        <p class="fine-print">This review is preserved on version {{ saved.version }}. Further review requires a new saved version.</p>
+      {% elif not review_context.current %}
+        <p class="form-error">Review unavailable: compare with the current case and calculate again. Save a new version if inputs changed or a newer version exists.</p>
+      {% endif %}
+      {% if user.is_authenticated %}
+        <p>Signed in as {{ user.get_full_name|default:user.username }}.</p>
+        <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button type="submit">Sign out</button></form>
+        {% if not can_review %}<p>A named account with advisory-review permission is required.</p>{% endif %}
+      {% else %}
+        <p><a href="{% url 'login' %}?next={% url 'saved-assessment' saved.assessment_id %}">Sign in to review</a></p>
+      {% endif %}
+      {% if review_token %}
+        <form action="{% url 'review-assessment' saved.assessment_id %}" method="post">
+          {% csrf_token %}<input type="hidden" name="review_token" value="{{ review_token }}">
+          <label for="review-note">Review note</label>
+          <textarea id="review-note" name="note" maxlength="2000" rows="3" aria-describedby="review-help"></textarea>
+          <p class="fine-print" id="review-help">A reason is required when requesting changes. Approval confirms review of this exact advisory, including its gaps and assumptions. It does not approve a loan.</p>
+          <button class="primary" type="submit" name="decision" value="approved">Approve advisory v{{ saved.version }}</button>
+          <button type="submit" name="decision" value="changes_requested">Request changes</button>
+        </form>
+      {% endif %}
+    </section>
     <section class="card calculation-body" aria-labelledby="saved-result">
       <h2 id="saved-result">Saved calculation</h2>
       <dl class="line-items">

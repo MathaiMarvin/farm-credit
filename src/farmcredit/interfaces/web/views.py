@@ -153,6 +153,9 @@ def workspace(request):
                 form.cleaned_data["price_reduction"], form.cleaned_data["harvest_reduction"]
             )
             inputs = input_snapshot(case, evidence, assumptions, mode)
+            AssessmentStore(settings.ASSESSMENT_DB).record_current_inputs(
+                "FC-001", input_fingerprint(inputs)
+            )
             if reference:
                 reference_status = (
                     "Stale for these inputs: the saved version has different inputs, sources or policy."
@@ -180,6 +183,13 @@ def workspace(request):
                 )
         except ValueError as error:
             form.add_error(None, str(error))
+        except (OSError, sqlite3.Error):
+            form.add_error(None, "Current case state could not be saved. Try calculating again.")
+    elif request.method == "POST":
+        try:
+            AssessmentStore(settings.ASSESSMENT_DB).record_current_inputs("FC-001", None)
+        except (OSError, sqlite3.Error):
+            form.add_error(None, "Current case state could not be saved. Try again.")
     context = {
         "case": case,
         "save_token": save_token,

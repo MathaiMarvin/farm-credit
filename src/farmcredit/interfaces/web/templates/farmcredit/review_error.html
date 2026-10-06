@@ -1,0 +1,7 @@
+{% load static %}
+<!doctype html><html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Review not recorded · FarmCredit</title><link rel="stylesheet" href="{% static 'farmcredit/workspace.css' %}"></head>
+<body><main class="saved-workspace"><h1>Review not recorded</h1>
+<p class="form-error" role="alert">{{ error }}</p>
+<a href="{% url 'saved-assessment' assessment_id %}">Reopen saved assessment</a>
+</main></body></html>

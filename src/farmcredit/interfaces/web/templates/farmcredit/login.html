@@ -1,0 +1,11 @@
+{% load static %}
+<!doctype html><html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Officer sign in · FarmCredit</title><link rel="stylesheet" href="{% static 'farmcredit/workspace.css' %}"></head>
+<body><main class="saved-workspace">
+<a href="{% url 'workspace' %}">← Case workspace</a><h1>Officer sign in</h1>
+<p>Use your individually provisioned officer account.</p>
+<form method="post">{% csrf_token %}
+{% if form.errors %}<p class="form-error" role="alert">Sign-in failed. Check your username and password.</p>{% endif %}
+{{ form.as_p }}<input type="hidden" name="next" value="{{ next }}">
+<button class="primary" type="submit">Sign in</button>
+</form></main></body></html>
