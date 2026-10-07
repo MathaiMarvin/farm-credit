@@ -1,7 +1,8 @@
 {% extends 'farmcredit/base.html' %}
+{% load presentation %}
 {% block content %}
       <div class="page-heading"><div><p class="eyebrow">1 · Review the case</p><h1>Can this household repay on time?</h1><p class="subtitle">Review the household’s records, then check when cash is available.</p></div><span class="case-id">FC-001</span></div>
-      <div class="notice"><span class="notice-dot" aria-hidden="true"></span><p>All records are synthetic. This calculation is not a credit decision. Calculations are unsaved until you select Save assessment.</p></div>
+      <div class="notice"><span class="notice-dot" aria-hidden="true"></span><p>This calculation is not a credit decision. Calculations are unsaved until you select Save assessment.</p></div>
       <nav class="notice" aria-label="Repayment demonstrations">
         <a href="?repayment_mode=seasonal"{% if not monthly %} aria-current="page"{% endif %}>Seasonal repayment</a>
         <span aria-hidden="true"> · </span>
@@ -11,25 +12,25 @@
         <div class="case-facts">
           <section class="card" aria-labelledby="household-heading">
             <div class="section-heading"><span class="section-number">01</span><div><p class="eyebrow">The household</p><h2 id="household-heading">Farm &amp; seasonal plan</h2></div></div>
-            <dl class="facts-grid"><div><dt>Household</dt><dd>Demo household FC-001</dd></div><div><dt>Location</dt><dd>Trans Nzoia, Kenya</dd></div><div><dt>Crop &amp; area</dt><dd>Maize · 2 acres</dd></div><div><dt>Expected harvest</dt><dd>{{ case.sale.harvest_on|date:"j M Y" }}</dd></div></dl>
-            <div class="harvest-breakdown"><div><strong>{{ case.sale.gross_kg|floatformat:"0g" }} <small>kg</small></strong><span>Expected harvest</span></div><span aria-hidden="true">−</span><div><strong>{{ case.sale.retained_kg|floatformat:"0g" }} <small>kg</small></strong><span>Household retention</span></div><span aria-hidden="true">−</span><div><strong>{{ case.sale.lost_kg|floatformat:"0g" }} <small>kg</small></strong><span>Expected loss</span></div></div>
-            <p class="fine-print">Recorded planning assumptions for a fictional season.</p>
+            <dl class="facts-grid"><div><dt>Household</dt><dd>Demo household FC-001</dd></div><div><dt>Location</dt><dd>Trans Nzoia, Kenya</dd></div><div><dt>Crop &amp; area</dt><dd>Maize · 2 acres</dd></div><div><dt>Expected harvest</dt><dd>{{ case.sale.harvest_on|date:"j M Y"|ui_text }}</dd></div></dl>
+            <div class="harvest-breakdown"><div><strong>{{ case.sale.gross_kg|floatformat:"0g"|ui_text }} <small>kg</small></strong><span>Expected harvest</span></div><span aria-hidden="true">−</span><div><strong>{{ case.sale.retained_kg|floatformat:"0g"|ui_text }} <small>kg</small></strong><span>Household retention</span></div><span aria-hidden="true">−</span><div><strong>{{ case.sale.lost_kg|floatformat:"0g"|ui_text }} <small>kg</small></strong><span>Expected loss</span></div></div>
+            <p class="fine-print">Recorded planning assumptions for the season.</p>
           </section>
           <section class="card" aria-labelledby="package-heading">
             <div class="section-heading"><span class="section-number">02</span><div><p class="eyebrow">The proposal</p><h2 id="package-heading">Input package &amp; repayment</h2></div></div>
-            <dl class="line-items"><div><dt>Inputs paid directly to supplier</dt><dd>KSh {{ case.financing.principal|floatformat:"0g" }}</dd></div><div><dt>Financing charges</dt><dd>KSh {{ case.financing.charges|floatformat:"0g" }}</dd></div><div class="total"><dt>Total due by {{ case.financing.repayment_on|date:"j M Y" }}</dt><dd>KSh {{ repayment_amount|floatformat:"0g" }}</dd></div></dl>
+            <dl class="line-items"><div><dt>Inputs paid directly to supplier</dt><dd>KSh {{ case.financing.principal|floatformat:"0g"|ui_text }}</dd></div><div><dt>Financing charges</dt><dd>KSh {{ case.financing.charges|floatformat:"0g"|ui_text }}</dd></div><div class="total"><dt>Total due by {{ case.financing.repayment_on|date:"j M Y"|ui_text }}</dt><dd>KSh {{ repayment_amount|floatformat:"0g"|ui_text }}</dd></div></dl>
             {% if monthly %}
-            <details><summary>Monthly instalments · synthetic terms</summary>
-            <p class="fine-print">{{ case.financing.schedule_source }} · {{ case.financing.schedule_version }}. Dates and amounts are supplied assumptions.</p>
-            <dl class="line-items">{% for row in schedule_rows %}<div><dt>{{ row.on|date:"j M Y" }}</dt><dd>KSh {{ row.due|floatformat:"2g" }}</dd></div>{% endfor %}</dl></details>
+            <details><summary>Monthly instalments · supplied terms</summary>
+            <p class="fine-print">{{ case.financing.schedule_source|ui_text }} · {{ case.financing.schedule_version|ui_text }}. Dates and amounts are supplied assumptions.</p>
+            <dl class="line-items">{% for row in schedule_rows %}<div><dt>{{ row.on|date:"j M Y"|ui_text }}</dt><dd>KSh {{ row.due|floatformat:"2g"|ui_text }}</dd></div>{% endfor %}</dl></details>
             {% endif %}
             <p class="fine-print">The package does not enter household cash. Each repayment is counted once.</p>
           </section>
           <section class="card" id="records" aria-labelledby="records-heading">
             <div class="section-heading"><span class="section-number">03</span><div><p class="eyebrow">The starting position</p><h2 id="records-heading">Recorded cash flows</h2></div></div>
-            <dl class="line-items"><div><dt>Opening cash · {{ case.starts_on|date:"j M Y" }}</dt><dd>KSh {{ case.opening_cash|floatformat:"0g" }}</dd></div></dl>
-            <details><summary>Inspect {{ case.other_movements|length }} cash commitments</summary><div class="table-scroll"><table><caption>Amounts leaving household cash</caption><thead><tr><th scope="col">Record</th><th scope="col">Date</th><th scope="col">KSh</th></tr></thead><tbody>{% for movement in cash_records %}<tr><td>{{ movement.record_id }}</td><td>{{ movement.on|date:"j M Y" }}</td><td>{{ movement.amount|floatformat:"2g" }}</td></tr>{% endfor %}</tbody></table></div></details>
-            {% if monthly %}<p class="fine-print">Income and expense coverage is explicitly assumed complete through {{ case.coverage_through|date:"j M Y" }} for this synthetic fixture.</p>{% endif %}
+            <dl class="line-items"><div><dt>Opening cash · {{ case.starts_on|date:"j M Y"|ui_text }}</dt><dd>KSh {{ case.opening_cash|floatformat:"0g"|ui_text }}</dd></div></dl>
+            <details><summary>Inspect {{ case.other_movements|length|ui_text }} cash commitments</summary><div class="table-scroll"><table><caption>Amounts leaving household cash</caption><thead><tr><th scope="col">Record</th><th scope="col">Date</th><th scope="col">KSh</th></tr></thead><tbody>{% for movement in cash_records %}<tr><td>{{ movement.record_id|ui_text }}</td><td>{{ movement.on|date:"j M Y"|ui_text }}</td><td>{{ movement.amount|floatformat:"2g"|ui_text }}</td></tr>{% endfor %}</tbody></table></div></details>
+            {% if monthly %}<p class="fine-print">Income and expense coverage is explicitly assumed complete through {{ case.coverage_through|date:"j M Y"|ui_text }} for this scenario.</p>{% endif %}
             <p class="fine-print">Other income and obligations are explicitly zero in this demo.</p>
           </section>
         </div>

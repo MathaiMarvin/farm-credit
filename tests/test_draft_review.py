@@ -40,6 +40,10 @@ class DraftReviewTests(TransactionTestCase):
 
     def test_named_decision_preserves_draft_and_does_not_approve_assessment(self):
         result = review_draft(self.review)
+        page = self.client.get(self.url)
+        self.assertContains(page, "Lending decision")
+        self.assertContains(page, "Not recorded here")
+        self.assertContains(page, "Your review has been saved")
         self.assertEqual(result.officer_name, "Demo Officer")
         self.assertEqual(result.draft.snapshot_json, self.draft.snapshot_json)
         self.assertFalse(Review.objects.exists())

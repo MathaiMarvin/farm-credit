@@ -5,6 +5,7 @@
 - Work on one agreed feature at a time. Before implementation, briefly explain its behaviour, simplest approach, impact and completion checks.
 - Keep updates, PR descriptions and final responses concise. Report outcomes, verification and material limits.
 - Keep product decisions in `docs/workflow.md` and setup instructions in `README.md`. Add documentation only for a distinct, necessary purpose.
+- Keep synthetic/fictional-data disclosures in README, not user-facing UI. Apply the web presentation helpers to source text, agent prose and trace displays; do not mutate stored provenance or calculation inputs. Preserve assumption/observation labels and credit-approval boundaries.
 - Preserve user edits. Do not stage unrelated changes or restore deleted content without understanding why it changed.
 
 ## Architecture and behaviour

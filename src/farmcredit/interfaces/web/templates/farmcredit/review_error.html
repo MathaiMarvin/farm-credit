@@ -1,6 +1,7 @@
 {% extends 'farmcredit/base.html' %}
+{% load presentation %}
 {% block title %}Review not recorded{% endblock %}
 {% block content %}<section class="card calculation-body"><h1>Review not recorded</h1>
-<p class="form-error" role="alert">{{ error }}</p>
+<p class="form-error" role="alert">{{ error|ui_text }}</p>
 <a href="{% url 'saved-assessment' assessment_id %}">Reopen saved assessment</a>
 </section>{% endblock %}

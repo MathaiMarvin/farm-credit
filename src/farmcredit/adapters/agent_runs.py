@@ -100,6 +100,8 @@ def start_run(
     assessment_id: str | None = None,
     application_id: str | None = None,
     model: str = "",
+    run_id: str | None = None,
+    request_context: dict | None = None,
 ) -> str:
     if bool(assessment_id) == bool(application_id):
         raise ValueError("Select exactly one application or historical assessment.")
@@ -136,7 +138,7 @@ def start_run(
         )
     state = CaseState.objects.select_for_update().get(pk=reader.scope.case_id)
     run = AgentRun(
-        run_id=uuid4(),
+        run_id=UUID(run_id) if run_id else uuid4(),
         execution_kind="model" if model else "internal_tools",
         model=model,
         officer_id=officer_id,
@@ -147,6 +149,8 @@ def start_run(
     )
     _current(run, reader)
     run.save(force_insert=True)
+    if request_context is not None:
+        record_event(str(run.pk), "officer_request", request_context)
     return str(run.pk)
 
 

@@ -1,0 +1,7 @@
+{% load presentation %}
+<div class="review-status-strip" aria-label="Decision status">
+  <div><span class="review-status-label">Agent investigation</span><strong>Finding saved</strong></div>
+  <div data-tone="{{ advisory_status.tone }}"><span class="review-status-label">Officer review</span><strong>{{ advisory_status.label|ui_text }}</strong></div>
+  <div><span class="review-status-label">Lending decision</span><strong>Not recorded here</strong></div>
+</div>
+<p class="review-boundary">This workflow reviews an advisory. Only the lender can approve the loan.</p>

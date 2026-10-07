@@ -1,11 +1,14 @@
 {% extends 'farmcredit/base.html' %}
+{% load presentation %}
 {% block title %}Evidence check{% endblock %}
-{% block content %}<div class="assessment-page"><h1>Evidence check · {{ run.status }}</h1>
-{% if run.execution_kind == 'model' %}<p class="notice">Model investigation · {{ run.model }}. Drafts require human review; this run cannot approve credit.</p>
-<p>{{ run.model_attempts }} model calls · Tokens: {{ run.token_usage|default_if_none:"unknown" }} · Provider-reported cost (USD): {{ run.cost|default_if_none:"unknown" }}</p>
+{% block content %}<div class="assessment-page"><h1>Evidence check · {{ run.status|ui_text }}</h1>
+{% if run.execution_kind == 'model' %}<p class="notice">Model investigation · {{ run.model|ui_text }}. Drafts require human review; this run cannot approve credit.</p>
+<p>{{ run.model_attempts|ui_text }} model calls · Tokens: {{ run.token_usage|default_if_none:"unknown"|ui_text }} · Provider-reported cost (USD): {{ run.cost|default_if_none:"unknown"|ui_text }}</p>
 {% else %}<p class="notice">Fixed internal tool sequence. Model, token usage and cost are unknown; no model execution is claimed.</p>{% endif %}
-{% if run.reason %}<p class="form-error" role="status">{{ run.reason }}</p>{% endif %}
+{% if run.reason %}<p class="form-error" role="status">{{ run.reason|ui_text }}</p>{% endif %}
 {% if run.application_id %}<p><a href="{% url 'application-intake' run.application_id %}">Back to saved application</a></p>{% endif %}
 {% if run.draft_id %}<p><a class="secondary-link" href="{% url 'saved-draft' run.draft_id %}">Open draft for human review</a></p>{% endif %}
-{% if run.events %}<section class="card calculation-body"><h2>Investigation trace</h2>{% for event in run.events %}<details><summary>{{ event.kind }} · {{ event.recorded_at }}</summary><pre class="run-result">{{ event.payload|pprint }}</pre></details>{% endfor %}</section>{% endif %}
-<section class="card calculation-body"><h2>Recorded activity</h2>{% for call in run.calls %}<details><summary>{{ call.sequence }}. {{ call.tool }} · {{ call.status }}</summary><p>Started {{ call.started_at }}{% if call.finished_at %} · finished {{ call.finished_at }}{% endif %}</p>{% if call.error %}<p class="form-error">{{ call.error }}</p>{% endif %}<pre class="run-result">{{ call.result|pprint }}</pre></details>{% empty %}<p>No tool calls recorded.</p>{% endfor %}</section></div>{% endblock %}
+<section class="card calculation-body" aria-labelledby="run-outcome"><h2 id="run-outcome">{% if run.status == 'completed' %}Draft ready for your review{% elif run.status == 'incomplete' %}Investigation needs another attempt{% else %}Investigation in progress{% endif %}</h2><p>{% if run.status == 'completed' %}Inspect the financial finding, evidence gaps and cited statements before recording your decision.{% elif run.status == 'incomplete' %}A completed draft was not confirmed. Review the failed check, then reopen the application to investigate again.{% else %}This page shows recorded activity. Refresh to check the latest outcome.{% endif %}</p>{% include 'farmcredit/run_activity.html' %}</section>
+<details class="technical-trace"><summary>Inspect the full model and tool trace</summary>
+{% if run.events %}<section class="card calculation-body"><h2>Investigation trace</h2>{% for event in run.events %}<details><summary>{{ event.kind|ui_text }} · {{ event.recorded_at|ui_text }}</summary><pre class="run-result">{{ event.payload|ui_data|pprint|ui_text }}</pre></details>{% endfor %}</section>{% endif %}
+<section class="card calculation-body"><h2>Recorded activity</h2>{% for call in run.calls %}<details><summary>{{ call.sequence|ui_text }}. {{ call.tool|ui_text }} · {{ call.status|ui_text }}</summary><p>Started {{ call.started_at|ui_text }}{% if call.finished_at %} · finished {{ call.finished_at|ui_text }}{% endif %}</p>{% if call.error %}<p class="form-error">{{ call.error|ui_text }}</p>{% endif %}<pre class="run-result">{{ call.result|ui_data|pprint|ui_text }}</pre></details>{% empty %}<p>No tool calls recorded.</p>{% endfor %}</section></details></div>{% endblock %}

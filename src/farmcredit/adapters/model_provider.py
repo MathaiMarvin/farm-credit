@@ -3,6 +3,7 @@
 
 import asyncio
 import json
+import math
 import os
 from dataclasses import dataclass, field
 
@@ -14,9 +15,49 @@ MAX_RESPONSE_BYTES = 256 * 1024
 
 
 class ProviderFailure(Exception):
-    def __init__(self, message, *, retryable=False):
+    def __init__(self, message, *, retryable=False, retry_after=0.5):
         super().__init__(message)
         self.retryable = retryable
+        self.retry_after = retry_after
+
+
+def provider_error(status, payload, retry_after=None):
+    explanation = {
+        401: "The provider rejected the configured credentials. Check the server API key.",
+        402: "The provider refused this request under its credit or spending limits. Check provider credits and request limits before retrying.",
+        403: "The provider denied access to this request. Check model access and provider restrictions.",
+        429: "The provider rate limit was reached.",
+        503: "The model service is temporarily unavailable.",
+    }.get(status, "The model request was unsuccessful.")
+    # Interpret documented categories only; never expose raw provider text or metadata.
+    try:
+        metadata = json.loads(payload)["error"].get("metadata", {})
+        source, reason = metadata.get("limit_source"), metadata.get("reason")
+    except (ValueError, KeyError, TypeError, AttributeError):
+        source, reason = None, None
+    transient_budget = False
+    if status == 402:
+        if source == "openrouter_in_flight_budget" and reason == "in_flight_budget_exhausted":
+            transient_budget = True
+            explanation = "The provider's temporary in-flight request budget is exhausted. Wait for outstanding requests to settle before retrying."
+        elif source == "openrouter_key_limit":
+            explanation = "The configured API key's spending limit was reached. The server operator must check that key's limit."
+        elif source == "openrouter_credits" and reason == "weight_exceeds_budget":
+            explanation = "This model request exceeds the provider's available request budget. Waiting alone will not resolve it; the server operator must review the request size or provider credits."
+        elif source == "openrouter_credits":
+            explanation = "The provider's available credits cannot cover this request. The server operator must check account credits."
+    try:
+        delay = float(retry_after)
+        if not math.isfinite(delay) or delay < 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        transient_budget = False
+        delay = 0.5
+    return ProviderFailure(
+        f"Model provider returned HTTP {status}. {explanation}",
+        retryable=transient_budget or status == 429 or status >= 500,
+        retry_after=delay,
+    )
 
 
 @dataclass(frozen=True)
@@ -52,16 +93,15 @@ class OpenRouter:
                     json=body,
                     headers={"Authorization": f"Bearer {self.api_key}"},
                 ) as response:
-                    if response.status_code != 200:
-                        raise ProviderFailure(
-                            f"Model provider returned HTTP {response.status_code}.",
-                            retryable=response.status_code == 429 or response.status_code >= 500,
-                        )
                     chunks = bytearray()
                     async for chunk in response.aiter_bytes():
                         chunks.extend(chunk)
                         if len(chunks) > MAX_RESPONSE_BYTES:
                             raise ProviderFailure("Model response exceeded the size limit.")
+            if response.status_code != 200:
+                raise provider_error(
+                    response.status_code, chunks, response.headers.get("Retry-After")
+                )
             try:
                 result = json.loads(chunks)
                 message = result["choices"][0]["message"]
@@ -82,7 +122,12 @@ class OpenRouter:
 
         try:
             return await asyncio.wait_for(request(), timeout=timeout)
-        except (httpx.HTTPError, asyncio.TimeoutError) as error:
+        except (httpx.TimeoutException, asyncio.TimeoutError) as error:
             raise ProviderFailure(
-                "Model request timed out or could not connect.", retryable=True
+                f"The model provider did not respond within {timeout:g} seconds.", retryable=True
+            ) from error
+        except httpx.HTTPError as error:
+            raise ProviderFailure(
+                "Could not connect to the model provider. Check the server network connection.",
+                retryable=True,
             ) from error

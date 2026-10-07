@@ -1,0 +1,36 @@
+{% load presentation %}
+<section class="case-intro" aria-labelledby="case-story-heading">
+  <div class="case-story">
+    <p class="eyebrow">Meet the case · {{ form.farmer.value|ui_text }}</p>
+    <h2 id="case-story-heading">A growing season.<br>A decision that matters.</h2>
+    <p class="case-story-lead">This household is asking for help paying for farm supplies now, with repayment planned for later. Before an officer can advise, the records need a closer look.</p>
+    <div class="case-facts" aria-label="Supplied application details">
+      <div><span>Growing</span><strong>{{ form.crop.value|default:'Not recorded'|capfirst|ui_text }}</strong></div>
+      <div><span>Location</span><strong>{{ form.location.value|default:'Not recorded'|ui_text }}</strong></div>
+      <div><span>Requested for supplies</span><strong>{% if form.financing_principal.value != None and form.financing_principal.value != '' %}KSh {{ form.financing_principal.value|ui_text }}{% else %}Not recorded{% endif %}</strong></div>
+    </div>
+    <p class="case-caption">Supplied plans and assumptions · still to be checked</p>
+  </div>
+  <aside class="case-mission" aria-labelledby="case-mission-heading">
+    <span class="mission-mark" aria-hidden="true">?</span>
+    <p class="eyebrow">Your role</p><h3 id="case-mission-heading">You’re the reviewing officer.</h3>
+    <p>What needs checking before this household takes on a repayment commitment?</p>
+    <p class="mission-value">The agent connects the records, checks the numbers and brings back a finding with sources—or explains what is still missing.</p>
+    <p class="fine-print">You review the advice. The lender decides on credit.</p>
+    <button type="submit" form="case-intake" class="primary">Open agent workspace →</button>
+    <p class="fine-print mission-next">Choose your question next. The agent runs only when you send it.</p>
+  </aside>
+</section>
+<section class="case-discovery" aria-labelledby="case-discovery-heading">
+  <div class="case-section-heading"><div><p class="eyebrow">A quick look inside</p><h2 id="case-discovery-heading">What will the agent investigate?</h2></div><span class="fine-print">Open a card to explore</span></div>
+  <div class="case-clues">
+    <details><summary><span class="clue-symbol" aria-hidden="true">01</span><span><strong>The household’s commitments</strong><small>What else needs paying?</small></span></summary><p>Past repayments, savings restrictions and existing debts can change what is affordable. The agent can inspect the linked records and flag gaps or conflicts.</p></details>
+    <details><summary><span class="clue-symbol" aria-hidden="true">02</span><span><strong>The season’s assumptions</strong><small>What are the plans relying on?</small></span></summary><p>Harvest estimates and expected selling prices are assumptions. The agent can check relevant weather and market evidence and explain where it does—or does not—support them.</p></details>
+    <details><summary><span class="clue-symbol" aria-hidden="true">03</span><span><strong>The missing pieces</strong><small>What should you ask for next?</small></span></summary><p>If the records are incomplete, the useful result may be a request for evidence. Unknown amounts stay unknown; the agent should explain what is needed before a finding can be made.</p></details>
+  </div>
+</section>
+<ol class="case-journey" aria-label="Your investigation journey">
+  <li aria-current="step"><span>1</span><div><strong>Meet the case</strong><small>You are here</small></div></li>
+  <li><span>2</span><div><strong>Give the agent a task</strong><small>Follow its checks</small></div></li>
+  <li><span>3</span><div><strong>Review the finding</strong><small>See sources and next steps</small></div></li>
+</ol>

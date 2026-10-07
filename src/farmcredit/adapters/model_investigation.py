@@ -14,12 +14,14 @@ from farmcredit.adapters.agent_runs import record_event, run_details, stop_run
 from farmcredit.adapters.model_provider import ProviderFailure
 from farmcredit.adapters.persistence.models import AgentRun
 from farmcredit.application.investigation import (
+    DEFAULT_TASK,
     MAX_CONTEXT_BYTES,
     MAX_MODEL_CALLS,
     MAX_MODEL_RETRIES,
     MAX_REPORTED_TOKENS,
     PROMPT_VERSION,
     SYSTEM_PROMPT,
+    validate_task,
 )
 from farmcredit.application.run_tools import MAX_RUN_SECONDS, ToolName, validate_arguments
 from farmcredit.application.saved_assessments import canonical_json
@@ -34,8 +36,11 @@ class InvestigationState(TypedDict):
     next: str
 
 
-async def investigate_model(*, run_id, officer_id, provider, client, tools):
+async def investigate_model(
+    *, run_id, officer_id, provider, client, tools, task=DEFAULT_TASK, previous=None
+):
     """The caller binds the MCP session. Model arguments cannot choose its scope."""
+    task = validate_task(task)
     event = sync_to_async(record_event, thread_sensitive=True)
     details = sync_to_async(run_details, thread_sensitive=True)
     stop = sync_to_async(stop_run, thread_sensitive=True)
@@ -80,6 +85,11 @@ async def investigate_model(*, run_id, officer_id, provider, client, tools):
         try:
             result = await provider.complete(state["messages"], tools, timeout=timeout)
         except ProviderFailure as error:
+            retry = (
+                error.retryable
+                and state["retries"] < MAX_MODEL_RETRIES
+                and remaining() > error.retry_after + 1
+            )
             await event(
                 run_id,
                 "model_failure",
@@ -89,12 +99,24 @@ async def investigate_model(*, run_id, officer_id, provider, client, tools):
                     "usage": None,
                     "cost": None,
                     "retryable": error.retryable,
+                    "retry_scheduled": retry,
+                    "retry_after": error.retry_after,
                 },
             )
-            if error.retryable and state["retries"] < MAX_MODEL_RETRIES and remaining() > 1:
-                await asyncio.sleep(0.5)
+            if retry:
+                await asyncio.sleep(error.retry_after)
                 return {"turns": attempt, "retries": state["retries"] + 1, "next": "model"}
-            return {"turns": attempt, **await finish("Model provider failed; no draft confirmed.")}
+            retry_limit = ""
+            if error.retryable:
+                retry_limit = (
+                    " The single automatic retry has already been used."
+                    if state["retries"] >= MAX_MODEL_RETRIES
+                    else f" The provider retry delay ({error.retry_after:g}s) exceeds this run's remaining time; no automatic retry was sent."
+                )
+            return {
+                "turns": attempt,
+                **await finish(f"{error}{retry_limit} No draft was confirmed."),
+            }
         await event(run_id, "model_response", {"attempt": attempt, **result})
         if remaining() <= 0:
             return await finish("Run deadline exceeded after model response.")
@@ -195,7 +217,13 @@ async def investigate_model(*, run_id, officer_id, provider, client, tools):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    "content": "Investigate this bound application and save a draft for human review.",
+                    "content": canonical_json(
+                        {
+                            "officer_request": task,
+                            "previous_saved_response": previous,
+                            "deliverable": "Investigate the bound application and save a draft for human review.",
+                        }
+                    ),
                 },
             ],
             "turns": 0,

@@ -12,9 +12,11 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from farmcredit.adapters.draft_reviews import draft_context, review_draft
+from farmcredit.adapters.persistence.models import ApplicationVersion
 from farmcredit.application.intake import intake_label
 from farmcredit.domain.draft_review import DraftReviewRequest
 from farmcredit.domain.review import Officer
+from farmcredit.interfaces.web.walkthrough import advisory_status, review_summary
 
 
 def _render_draft(request, draft_id, *, error=None, status=200, note=""):
@@ -41,6 +43,13 @@ def _render_draft(request, draft_id, *, error=None, status=200, note=""):
     context.update(
         {
             "baseline": baseline,
+            "summary": review_summary(snapshot),
+            "advisory_status": advisory_status(context),
+            "latest_application": ApplicationVersion.objects.filter(
+                case_id=context["draft"].application.case_id, officer=request.user
+            ).first()
+            if context["draft"].application_id
+            else None,
             "calculation_issues": [
                 {"label": intake_label(issue["field"]), "reason": issue["reason"]}
                 for issue in snapshot["calculation"]["issues"]
