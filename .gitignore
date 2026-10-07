@@ -6,3 +6,6 @@ build/
 dist/
 .coverage
 .env
+.ruff_cache/
+
+.local/

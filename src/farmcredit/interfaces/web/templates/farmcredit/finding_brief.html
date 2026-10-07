@@ -1,0 +1,10 @@
+{% load presentation %}
+<div class="finding-brief" data-tone="{{ summary.tone }}">
+  <p class="eyebrow">What the investigation found</p>
+  <h3>{{ summary.headline|ui_text }}</h3>
+  <p>{{ summary.next_step|ui_text }}</p>
+  <div class="finding-facts">
+    <div><span>Repayment calculation</span><strong>{% if summary.cash_after == None %}Not yet established{% elif summary.first_gap %}A dated cash gap{% else %}No dated cash gap{% endif %}</strong><small>Under the recorded assumptions</small></div>
+    <div><span>After final repayment</span><strong>{% if summary.cash_after != None %}KSh {{ summary.cash_after|floatformat:"2g"|ui_text }}{% else %}Not calculated{% endif %}</strong><small>{% if summary.first_gap %}A later surplus does not cover an earlier gap{% else %}Expected cash remaining, not an approval{% endif %}</small></div>
+  </div>
+</div>

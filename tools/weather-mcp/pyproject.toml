@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[project]
+name = "farmcredit-weather-mcp-runtime"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = ["open-meteo-mcp==0.2.0", "mcp>=1.12,<2"]

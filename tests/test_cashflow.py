@@ -9,7 +9,6 @@ from decimal import Decimal
 
 from farmcredit.domain.cashflow import CashMovement, assess_cashflow
 
-
 D = Decimal
 START = date(2027, 4, 1)
 REPAYMENT = CashMovement("proposed-repayment", date(2027, 9, 30), D("-22000"))
@@ -33,8 +32,10 @@ def seasonal_movements(received_on: date) -> list[CashMovement]:
 
 def assess(movements, opening_cash=D("40000")):
     return assess_cashflow(
-        starts_on=START, opening_cash=opening_cash,
-        movements=movements, repayment=REPAYMENT,
+        starts_on=START,
+        opening_cash=opening_cash,
+        movements=movements,
+        repayment=REPAYMENT,
     )
 
 
@@ -52,15 +53,18 @@ class CashflowTests(unittest.TestCase):
         self.assertEqual(result.cash_before_repayment, D("2000"))
         self.assertEqual(result.cash_after_repayment, D("-20000"))
         self.assertEqual(result.coverage, D("0.09"))
-        self.assertEqual([(b.on, b.amount) for b in result.shortfalls],
-                         [(REPAYMENT.on, D("-20000"))])
+        self.assertEqual(
+            [(b.on, b.amount) for b in result.shortfalls], [(REPAYMENT.on, D("-20000"))]
+        )
         self.assertEqual([m.record_id for m in result.future_movements], ["sale"])
 
     def test_later_surplus_does_not_hide_earlier_shortfall(self):
-        result = assess([
-            CashMovement("cost", date(2027, 4, 2), D("-50000")),
-            CashMovement("receipt", date(2027, 9, 10), D("60000")),
-        ])
+        result = assess(
+            [
+                CashMovement("cost", date(2027, 4, 2), D("-50000")),
+                CashMovement("receipt", date(2027, 9, 10), D("60000")),
+            ]
+        )
         self.assertEqual(result.cash_after_repayment, D("28000"))
         self.assertEqual(result.shortfalls[0].amount, D("-10000"))
 
@@ -103,15 +107,21 @@ class CashflowTests(unittest.TestCase):
     def test_repayment_must_be_positive_obligation(self):
         for amount in (D("0"), D("22000")):
             with self.subTest(amount=amount), self.assertRaises(ValueError):
-                assess_cashflow(starts_on=START, opening_cash=D("40000"),
-                                movements=[], repayment=CashMovement("repay", REPAYMENT.on, amount))
+                assess_cashflow(
+                    starts_on=START,
+                    opening_cash=D("40000"),
+                    movements=[],
+                    repayment=CashMovement("repay", REPAYMENT.on, amount),
+                )
 
     def test_cash_financing_and_supplier_financing_have_equal_result(self):
         # Cash arrives before purchase; direct supplier funding has no cash entries.
-        cash_funded = assess([
-            CashMovement("loan-cash", date(2027, 4, 2), D("20000")),
-            CashMovement("input-purchase", date(2027, 4, 3), D("-20000")),
-        ])
+        cash_funded = assess(
+            [
+                CashMovement("loan-cash", date(2027, 4, 2), D("20000")),
+                CashMovement("input-purchase", date(2027, 4, 3), D("-20000")),
+            ]
+        )
         supplier_funded = assess([])
         self.assertEqual(cash_funded.cash_after_repayment, supplier_funded.cash_after_repayment)
 
@@ -120,10 +130,13 @@ class CashflowTests(unittest.TestCase):
         self.assertEqual(assess(movements), assess(reversed(movements)))
 
     def test_lower_receipts_cannot_improve_cash(self):
-        results = [assess([CashMovement("sale", date(2027, 9, 10), D(amount))])
-                   for amount in ("30000", "45000", "60000")]
-        self.assertEqual([r.cash_after_repayment for r in results],
-                         [D("48000"), D("63000"), D("78000")])
+        results = [
+            assess([CashMovement("sale", date(2027, 9, 10), D(amount))])
+            for amount in ("30000", "45000", "60000")
+        ]
+        self.assertEqual(
+            [r.cash_after_repayment for r in results], [D("48000"), D("63000"), D("78000")]
+        )
 
 
 if __name__ == "__main__":

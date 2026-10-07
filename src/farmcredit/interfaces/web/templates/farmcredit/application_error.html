@@ -1,0 +1,3 @@
+{% extends 'farmcredit/base.html' %}
+{% load presentation %}{% block title %}Application unavailable{% endblock %}
+{% block content %}<h1>Application unavailable</h1><p class="form-error" role="alert">{{ error|ui_text }}</p><a href="{% url 'applications' %}">Reopen your applications</a>{% endblock %}

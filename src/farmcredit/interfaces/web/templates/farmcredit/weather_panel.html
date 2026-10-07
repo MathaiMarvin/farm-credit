@@ -1,0 +1,14 @@
+{% load presentation %}
+{% if weather %}
+<section class="card calculation-body" aria-labelledby="weather-heading">
+  <p class="eyebrow">Weather evidence · Open-Meteo</p>
+  <h2 id="weather-heading">{% if weather.review.status == 'outside_season' %}Forecast does not cover the crop season{% elif weather.review.status == 'context_only' %}Short-range weather context{% elif weather.review.status == 'incomplete' %}Weather values are incomplete{% else %}Usable weather evidence needed{% endif %}</h2>
+  <p>{{ weather.reference|ui_text }} city reference · {{ weather.starts_on|ui_text }} to {{ weather.ends_on|ui_text }} · UTC hours.</p>
+  {% if weather.hours %}
+  <p>Resolved reference coordinates: {{ weather.latitude|ui_text }}, {{ weather.longitude|ui_text }}. Exact farm location and model grid are not verified.</p>
+  {% if weather.review.total_precipitation_mm != None %}<dl class="line-items"><div><dt>Forecast precipitation over seven days</dt><dd>{{ weather.review.total_precipitation_mm|floatformat:1|ui_text }} mm</dd></div><div><dt>Highest forecast hourly temperature</dt><dd>{{ weather.review.maximum_temperature_c|floatformat:1|ui_text }} °C</dd></div></dl>{% endif %}
+  {% endif %}
+  {% for finding in weather.review.findings %}<p>{{ finding|ui_text }}</p>{% endfor %}
+  <details><summary>Weather source and coverage</summary><p><a href="{{ weather.source_url }}">{{ weather.source|ui_text }}</a> · <a href="{{ weather.license_url }}">{{ weather.license|ui_text }}</a>. Retrieved {{ weather.retrieved_at|ui_text }}.</p><p>Forecasts are model outputs, not measured rainfall or a drought classification. No numerical yield adjustment or insurance claim is inferred. This saved forecast reflects the retrieval time; start a new investigation for an updated forecast.</p><p class="fine-print">External MCP: {{ weather.server_package|ui_text }} · {{ weather.tool|ui_text }}. Only weather data is used; provider text cannot change policy or approve a loan.</p></details>
+</section>
+{% endif %}

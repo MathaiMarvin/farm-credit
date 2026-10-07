@@ -1,17 +1,48 @@
 name: Checks
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
 permissions:
   contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       matrix:
         python-version: ['3.10', '3.14']
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: farmcredit
+          POSTGRES_USER: farmcredit
+          POSTGRES_PASSWORD: test-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U farmcredit -d farmcredit"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: farmcredit
+      PGUSER: farmcredit
+      PGPASSWORD: test-only-password
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
+          version: '0.12.23'
           python-version: ${{ matrix.python-version }}
-      - run: python -m pip install .
-      - run: python -m unittest discover -s tests -v
+          enable-cache: true
+      - run: uv sync --locked --no-editable
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync farmcredit migrate --noinput
+      - run: uv run --no-sync farmcredit makemigrations --check --dry-run
+      - run: uv run --no-sync farmcredit check
+      - run: uv run --no-sync farmcredit test tests -v 2 --noinput
+      - run: uv build

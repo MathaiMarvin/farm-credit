@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (c) 2026 MathaiMarvin
 
-"""Project available KES cash against one proposed seasonal repayment.
+"""Project available KES cash against a supplied repayment schedule.
 
 Inputs are dated household cash movements, not accounting revenue or expense.
 Supplier-financed inputs therefore do not enter this cash ledger. Their eventual
@@ -10,10 +10,9 @@ repayment does. Evidence validation and financing normalisation belong upstream.
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from itertools import groupby
 from typing import Iterable
-
 
 ZERO = Decimal("0.00")
 CENT = Decimal("0.01")
@@ -55,12 +54,21 @@ class CashBalance:
 
 
 @dataclass(frozen=True)
+class RepaymentPosition:
+    on: date
+    due: Decimal
+    cash_before: Decimal
+    cash_after: Decimal
+
+
+@dataclass(frozen=True)
 class CashflowResult:
     cash_before_repayment: Decimal
     cash_after_repayment: Decimal
     coverage: Decimal
     balances: tuple[CashBalance, ...]
     future_movements: tuple[CashMovement, ...]
+    repayments: tuple[RepaymentPosition, ...] = ()
 
     @property
     def shortfalls(self) -> tuple[CashBalance, ...]:
@@ -75,47 +83,69 @@ def assess_cashflow(
     movements: Iterable[CashMovement],
     repayment: CashMovement,
 ) -> CashflowResult:
-    """Assess known cash flows through repayment, retaining later evidence.
+    """Compatibility entry point for a single supplied repayment."""
+    return assess_schedule(
+        starts_on=starts_on,
+        opening_cash=opening_cash,
+        movements=movements,
+        repayments=(repayment,),
+    )
 
-    Opening cash is available at the start of starts_on. The proposed repayment
-    is supplied separately and must not also appear in movements. Mixed receipts
-    and payments on one date require clarification in this first version: date
-    alone cannot establish that a receipt is available before a payment.
+
+def assess_schedule(
+    *,
+    starts_on: date,
+    opening_cash: Decimal,
+    movements: Iterable[CashMovement],
+    repayments: Iterable[CashMovement],
+) -> CashflowResult:
+    """Assess dated obligations, reserving other same-day outflows first.
+
+    Negative balances carry forward as unmet obligations, never as borrowing.
+    Same-day proposed instalments are grouped; no intraday ordering is inferred.
+    The summary fields describe the final repayment date, not schedule-wide coverage.
     """
     if type(starts_on) is not date:
         raise ValueError("Assessment needs a calendar start date.")
     validate_money(opening_cash)
     if opening_cash < ZERO:
         raise ValueError("Opening available cash cannot be negative.")
-    if repayment.amount >= ZERO or repayment.on < starts_on:
+    repayments = tuple(repayments)
+    if not repayments:
+        raise ValueError("A repayment schedule cannot be empty.")
+    if any(item.amount >= ZERO or item.on < starts_on for item in repayments):
         raise ValueError("Repayment must be an outflow on or after the start date.")
-
     entries = tuple(movements)
-    ids = [entry.record_id for entry in (*entries, repayment)]
+    ids = [entry.record_id for entry in (*entries, *repayments)]
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate source record; a movement may only be counted once.")
     if any(entry.on < starts_on for entry in entries):
         raise ValueError("Exclude payments already reflected in opening cash.")
-
-    ordered = sorted((*entries, repayment), key=lambda entry: entry.on)
+    final_date = max(item.on for item in repayments)
+    due_by_date = {}
+    for item in repayments:
+        due_by_date[item.on] = due_by_date.get(item.on, ZERO) - item.amount
+    ordered = sorted((*entries, *repayments), key=lambda entry: entry.on)
     balance = opening_cash
     balances = [CashBalance(starts_on, opening_cash)]
+    positions = []
     for on, group in groupby(ordered, key=lambda entry: entry.on):
-        if on > repayment.on:
+        if on > final_date:
             break
         amounts = [entry.amount for entry in group]
         if any(amount > ZERO for amount in amounts) and any(amount < ZERO for amount in amounts):
             raise ValueError(f"Receipt/payment ordering on {on} requires clarification.")
         balance += sum(amounts, ZERO)
         balances.append(CashBalance(on, balance))
-
-    # Other payments on the due date are reserved before proposed repayment.
-    before = balance - repayment.amount
-    coverage = (before / -repayment.amount).quantize(CENT, rounding=ROUND_HALF_UP)
+        if on in due_by_date:
+            due = due_by_date[on]
+            positions.append(RepaymentPosition(on, due, balance + due, balance))
+    last = positions[-1]
     return CashflowResult(
-        cash_before_repayment=before,
-        cash_after_repayment=balance,
-        coverage=coverage,
+        cash_before_repayment=last.cash_before,
+        cash_after_repayment=last.cash_after,
+        coverage=(last.cash_before / last.due).quantize(CENT, rounding=ROUND_HALF_UP),
         balances=tuple(balances),
-        future_movements=tuple(entry for entry in ordered if entry.on > repayment.on),
+        future_movements=tuple(entry for entry in ordered if entry.on > final_date),
+        repayments=tuple(positions),
     )

@@ -1,0 +1,26 @@
+{% load presentation %}
+<section id="demo-scenario" class="card demo-playground" aria-labelledby="demo-heading">
+  {% if scenario_error %}<p role="alert" class="form-error">That scenario is unavailable. The original scenario is shown; choose an option below.</p>{% endif %}
+  <div class="demo-guide"><span class="avatar" aria-hidden="true">f</span><div><p class="eyebrow">Your demo guide · deterministic simulation</p><h2 id="demo-heading">{% if scenario == 'late' %}Same harvest. Different timing.{% elif scenario == 'price' %}A lower price leaves less room.{% else %}What if the buyer pays late?{% endif %}</h2><p>{% if scenario == 'late' %}The sale still brings in money, but it arrives after repayment is due. Try a lower price next, or reset to compare.{% elif scenario == 'price' %}The price is 10% lower, and payment arrives on the original date. These options each start from the original household.{% else %}This household plans to repay from its maize sale. Choose a what-if below and see what changes.{% endif %}</p></div></div>
+  <form action="{% url 'guided-demo' %}" method="get" hx-get="{% url 'guided-demo' %}" hx-target="#demo-scenario" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#demo-busy" class="demo-controls">
+    <button class="secondary-link" type="submit" name="scenario" value="late" aria-pressed="{% if scenario == 'late' %}true{% else %}false{% endif %}">Buyer pays after the deadline</button>
+    <button class="secondary-link" type="submit" name="scenario" value="price" aria-pressed="{% if scenario == 'price' %}true{% else %}false{% endif %}">Price falls 10%</button>
+    <button class="quiet-button" type="submit" name="scenario" value="baseline" aria-pressed="{% if scenario == 'baseline' %}true{% else %}false{% endif %}">Reset scenario</button>
+  </form>
+  <p id="demo-busy" class="htmx-indicator" role="status">Calculating your what-if…</p>
+  <p id="request-error" class="form-error" role="alert" hidden>We couldn’t update the scenario. The previous result is still shown. Try again.</p>
+  <div id="demo-result" tabindex="-1" aria-live="polite" aria-atomic="true">
+    <ol class="demo-timeline {% if scenario == 'late' %}demo-late{% endif %}" aria-label="Scenario dates in chronological order">
+      <li><span class="demo-dot" aria-hidden="true"></span><small>Harvest</small><strong>{{ case.sale.harvest_on|date:"j M"|ui_text }}</strong></li>
+      {% if scenario == 'late' %}<li class="demo-due"><span class="demo-dot" aria-hidden="true"></span><small>Repayment due</small><strong>{{ case.financing.repayment_on|date:"j M"|ui_text }}</strong></li>{% endif %}
+      <li class="demo-receipt"><span class="demo-dot" aria-hidden="true"></span><small>Buyer pays</small><strong>{{ case.sale.received_on|date:"j M"|ui_text }}</strong></li>
+      {% if scenario != 'late' %}<li class="demo-due"><span class="demo-dot" aria-hidden="true"></span><small>Repayment due</small><strong>{{ case.financing.repayment_on|date:"j M"|ui_text }}</strong></li>{% endif %}
+    </ol>
+    <div class="demo-outcome {% if gap %}demo-gap{% endif %}">
+      <p class="eyebrow">{% if scenario == 'baseline' %}Original scenario{% elif scenario == 'late' %}Payment 14 days after the deadline{% else %}Sale price KSh {{ case.sale.price_per_kg|floatformat:2|ui_text }}/kg{% endif %}</p>
+      {% if gap %}<h3>KSh {{ gap|floatformat:"0g"|ui_text }} short at repayment</h3><p>The KSh {{ receipt|floatformat:"0g"|ui_text }} sale arrives too late to cover the {{ case.financing.repayment_on|date:"j M"|ui_text }} obligation.</p>{% else %}<h3>KSh {{ result.cash_after_repayment|floatformat:"0g"|ui_text }} left after repayment</h3><p>The stated cash flows cover repayment on time in this scenario.{% if scenario == 'price' %} That is KSh {{ difference|floatformat:"0g"|ui_text }} compared with the original balance.{% endif %}</p>{% endif %}
+    </div>
+  </div>
+  <details class="demo-math"><summary>How is this worked out?</summary><p>This scenario uses planning assumptions for 2027. The sale uses 2,000 kg harvested minus 400 kg retained and 100 kg lost. Opening cash, household costs and other obligations remain fixed.</p><dl class="line-items"><div><dt>Sale proceeds ({{ case.sale.received_on|date:"j M Y"|ui_text }})</dt><dd>KSh {{ receipt|floatformat:"2g"|ui_text }}</dd></div><div><dt>Cash available at repayment</dt><dd>KSh {{ result.cash_before_repayment|floatformat:"2g"|ui_text }}</dd></div><div><dt>Repayment due</dt><dd>KSh {{ repayment|floatformat:"2g"|ui_text }}</dd></div></dl><p>Later receipts do not erase a gap at the deadline. Negative balances represent unmet obligations, not borrowing.</p><a href="{% url 'workspace' %}">Inspect the original household and all assumptions →</a></details>
+  <div class="demo-next"><p>Curious about your own what-if?</p><a href="{% url 'workspace' %}">Explore dates and prices →</a><a href="{% url 'application-new' %}">Start an application →</a></div>
+</section>

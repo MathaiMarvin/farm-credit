@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,10 +7,36 @@ name = "farmcredit"
 version = "0.1.0"
 description = "Evidence-based seasonal agricultural credit advisory"
 readme = "README.md"
-license = {file = "LICENSE"}
-classifiers = ["License :: OSI Approved :: GNU Affero General Public License v3"]
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "Django>=5.2,<5.3",
+    "httpx>=0.28,<1",
+    "langgraph>=1,<2",
+    "mcp>=2,<3",
+    "psycopg[binary]>=3.2,<4",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.14,<1"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_web.py" = ["E402"]
+
+[project.scripts]
+farmcredit = "farmcredit.interfaces.web.run:main"
+farmcredit-mcp = "farmcredit.interfaces.mcp.run:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"farmcredit.interfaces.web" = ["templates/farmcredit/*.html", "static/farmcredit/*", "static/farmcredit/vendor/*"]

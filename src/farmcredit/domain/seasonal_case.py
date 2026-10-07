@@ -5,7 +5,7 @@
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from farmcredit.domain.cashflow import CENT, CashMovement, validate_money
 
@@ -40,13 +40,36 @@ class HarvestSale:
 
 @dataclass(frozen=True)
 class SupplierFinancing:
-    """One supplier-paid package; charges are all payable at final repayment."""
+    """One supplier-paid package with either one payment or an explicit schedule."""
 
     record_id: str
     supplied_on: date
     principal: Decimal
     charges: Decimal
     repayment_on: date
+
+    schedule: tuple[CashMovement, ...] = ()
+    schedule_source: str = ""
+    schedule_version: str = ""
+
+    def __post_init__(self):
+        object.__setattr__(self, "schedule", tuple(self.schedule))
+
+    def as_repayments(self) -> tuple[CashMovement, ...]:
+        aggregate = self.as_repayment()
+        if not self.schedule:
+            if self.schedule_source or self.schedule_version:
+                raise ValueError("A supplied schedule cannot be empty.")
+            return (aggregate,)
+        if not self.schedule_source.strip() or not self.schedule_version.strip():
+            raise ValueError("A supplied schedule needs its source and version.")
+        if any(item.amount >= 0 or item.on < self.supplied_on for item in self.schedule):
+            raise ValueError("Instalments must be outflows on or after input supply.")
+        if max(item.on for item in self.schedule) != self.repayment_on:
+            raise ValueError("Final instalment must match the stated repayment end date.")
+        if sum((item.amount for item in self.schedule), Decimal(0)) != aggregate.amount:
+            raise ValueError("Instalments must reconcile to principal plus stated charges.")
+        return tuple(sorted(self.schedule, key=lambda item: item.on))
 
     def as_repayment(self) -> CashMovement:
         validate_money(self.principal)
@@ -67,6 +90,7 @@ class SeasonalCase:
     sale: HarvestSale
     financing: SupplierFinancing
     other_movements: tuple[CashMovement, ...]
+    coverage_through: date | None = None
 
     def __post_init__(self) -> None:
         # Snapshot the caller's collection, including when supplied as a list.
