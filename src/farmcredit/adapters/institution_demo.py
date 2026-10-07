@@ -99,18 +99,18 @@ def demo_application_data(member_ref: str) -> dict:
         raise ValueError("Unknown synthetic household.")
     case = load_demo_case()
     data = {
-        "farmer": f"Synthetic household {member_ref}",
+        "farmer": f"Household {member_ref}",
         "farm": f"Plot {member_ref}",
-        "location": "Synthetic Nakuru plot",
+        "location": "Nakuru plot",
         "season": "2027 maize",
         "crop": "maize",
         "area_hectares": "1",
         "repayment_mode": "seasonal",
         "institution_record_set": member_ref,
-        "source": "Synthetic household planning worksheet; declared assumptions",
+        "source": "Household planning worksheet; declared assumptions",
         "basis": "assumed",
         "recorded_on": DEMO_RECORDED_ON,
-        "schedule_source": "Synthetic supplied cooperative schedule",
+        "schedule_source": "Supplied cooperative schedule",
         "schedule_version": "demo-v1",
         "collection_method": "Supplied cash repayment",
     }

@@ -11,19 +11,31 @@ from django.db import connection, connections
 from mcp import Client
 from mcp.client.stdio import StdioServerParameters
 
+from farmcredit.adapters.agent_conversation import previous_response
 from farmcredit.adapters.agent_runs import record_event, start_run, stop_run
 from farmcredit.adapters.application_store import get_application
 from farmcredit.adapters.model_investigation import investigate_model
 from farmcredit.adapters.model_provider import OpenRouter
+from farmcredit.application.investigation import DEFAULT_TASK, validate_task
 from farmcredit.application.run_tools import MAX_RUN_SECONDS
 from farmcredit.application.tool_schema import DESCRIPTIONS, FIELDS, _object
 from farmcredit.interfaces.mcp.server import issue_run_token
 
 
-def investigate_application_with_model(*, application_id, officer_id):
+def investigate_application_with_model(
+    *, application_id, officer_id, run_id=None, task=DEFAULT_TASK
+):
     get_application(application_id, officer_id)
+    task = validate_task(task)
+    previous = previous_response(application_id, officer_id)
     provider = OpenRouter.configured()
-    run_id = start_run(application_id=application_id, officer_id=officer_id, model=provider.model)
+    run_id = start_run(
+        application_id=application_id,
+        officer_id=officer_id,
+        model=provider.model,
+        run_id=run_id,
+        request_context={"task": task, "previous_response": previous},
+    )
     env = {
         "FARMCREDIT_SECRET_KEY": settings.SECRET_KEY,
         "FARMCREDIT_MCP_TOKEN": issue_run_token(run_id=run_id, officer_id=officer_id),
@@ -71,6 +83,8 @@ def investigate_application_with_model(*, application_id, officer_id):
                 provider=provider,
                 client=client,
                 tools=tools,
+                task=task,
+                previous=previous,
             )
 
     async def connected_run():

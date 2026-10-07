@@ -2,12 +2,14 @@
 """Authenticated intake and the fixed evidence check over a saved version."""
 
 import json
+import os
 from uuid import uuid4
 
 from django.core import signing
 from django.db import DatabaseError
-from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -17,12 +19,35 @@ from farmcredit.adapters.case_reader import _require_officer, bind_application_r
 from farmcredit.adapters.institution_demo import MEMBER_CHOICES, demo_application_data
 from farmcredit.adapters.intake_investigation import investigate_application
 from farmcredit.adapters.persistence.models import AgentRun, ApplicationVersion, Draft
+from farmcredit.adapters.run_progress import read_run_progress
 from farmcredit.application.intake import intake_label
+from farmcredit.application.investigation import DEFAULT_TASK, validate_task
 from farmcredit.interfaces.mcp.investigation import investigate_application_with_model
 from farmcredit.interfaces.web.forms import ApplicationForm
+from farmcredit.interfaces.web.walkthrough import (
+    activity_rows,
+    conversation_turns,
+    progress_context,
+)
 
 
 def _failure(request, error):
+    if request.headers.get("HX-Request"):
+        status = (
+            403
+            if isinstance(error, PermissionError)
+            else 404
+            if isinstance(error, LookupError)
+            else 503
+        )
+        return render(
+            request,
+            "farmcredit/investigation_error.html",
+            {
+                "error": "Investigation could not be confirmed. Reopen the application to check access and recorded runs before retrying."
+            },
+            status=status,
+        )
     if isinstance(error, PermissionError):
         return HttpResponseForbidden("A named officer with advisory-review permission is required.")
     if isinstance(error, LookupError):
@@ -80,7 +105,7 @@ def application_intake(request, application_id=None):
                 initial["kamis_market_reference"] = "Nakuru Wakulima"
                 initial["weather_reference"] = "Nakuru"
             except ValueError:
-                return HttpResponseBadRequest("Unknown synthetic household.")
+                return HttpResponseBadRequest("Unknown household.")
         form = ApplicationForm(request.POST if request.method == "POST" else None, initial=initial)
         token = (
             request.POST.get("save_token", "")
@@ -124,8 +149,27 @@ def application_intake(request, application_id=None):
                         return redirect("application-intake", application_id=result.application_id)
                 else:
                     status = 400
-        context = {"form": form, "saved": saved, "save_token": token}
+        context = {
+            "form": form,
+            "saved": saved,
+            "save_token": token,
+            "demo_preview": bool(not saved and request.GET.get("demo")),
+            "default_task": DEFAULT_TASK,
+            "model_configured": bool(os.environ.get("OPENROUTER_API_KEY", "").strip()),
+        }
         if saved:
+            run_id = str(uuid4())
+            context.update(
+                run_id=run_id,
+                investigation_token=signing.dumps(
+                    {
+                        "run_id": run_id,
+                        "officer_id": officer_id,
+                        "application_id": saved.application_id,
+                    },
+                    salt="investigation-start",
+                ),
+            )
             context.update(
                 brief=bind_application_reader(
                     officer_id=officer_id, application_id=saved.application_id
@@ -140,6 +184,7 @@ def application_intake(request, application_id=None):
                     application_id=saved.application_id, officer=request.user
                 ).order_by("-started_at"),
             )
+            context["turns"] = conversation_turns(saved.application_id, officer_id)
             context["gaps"] = [
                 {"label": intake_label(gap.field), "reason": gap.reason}
                 for gap in context["brief"].gaps
@@ -159,16 +204,44 @@ def investigate(request, application_id):
         investigate_case = (
             investigate_application_with_model if mode == "model" else investigate_application
         )
+        options = {}
+        if mode == "model" and "task" in request.POST:
+            options["task"] = validate_task(request.POST["task"])
+        if mode == "model" and request.POST.get("investigation_token"):
+            try:
+                binding = signing.loads(
+                    request.POST["investigation_token"], salt="investigation-start", max_age=7200
+                )
+                if binding["officer_id"] != str(request.user.pk) or binding[
+                    "application_id"
+                ] != str(application_id):
+                    raise signing.BadSignature
+            except (signing.BadSignature, KeyError, TypeError):
+                raise ValueError(
+                    "This investigation form expired or changed. Reopen the application."
+                ) from None
+            get_application(str(application_id), str(request.user.pk))
+            options["run_id"] = binding["run_id"]
+            existing = AgentRun.objects.filter(
+                pk=binding["run_id"], officer=request.user, application_id=application_id
+            ).first()
+            if existing:
+                return _run_redirect(request, str(existing.pk))
         run_id = investigate_case(
-            application_id=str(application_id), officer_id=str(request.user.pk)
+            application_id=str(application_id), officer_id=str(request.user.pk), **options
         )
     except (PermissionError, LookupError, DatabaseError) as error:
         return _failure(request, error)
     except ValueError as error:
         return render(
-            request, "farmcredit/application_error.html", {"error": str(error)}, status=409
+            request,
+            "farmcredit/investigation_error.html"
+            if request.headers.get("HX-Request")
+            else "farmcredit/application_error.html",
+            {"error": str(error)},
+            status=409,
         )
-    return redirect("application-run", run_id=run_id)
+    return _run_redirect(request, run_id)
 
 
 @never_cache
@@ -176,6 +249,44 @@ def investigate(request, application_id):
 def application_run(request, run_id):
     try:
         details = run_details(run_id=str(run_id), officer_id=str(request.user.pk))
-        return render(request, "farmcredit/application_run.html", {"run": details})
+        return render(
+            request,
+            "farmcredit/application_run.html",
+            {"run": details, "activity": activity_rows(details["calls"])},
+        )
     except (PermissionError, LookupError, DatabaseError) as error:
         return _failure(request, error)
+
+
+def _run_redirect(request, run_id):
+    url = reverse("application-run", args=[run_id])
+    if request.POST.get("conversation") == "true":
+        run = AgentRun.objects.filter(pk=run_id, officer=request.user).first()
+        if run and run.application_id:
+            url = (
+                reverse("application-intake", args=[run.application_id])
+                + f"?investigation={run_id}#agent-thread"
+            )
+    if request.headers.get("HX-Request"):
+        return HttpResponse(headers={"HX-Redirect": url})
+    return redirect(url)
+
+
+@never_cache
+@require_GET
+def investigation_progress(request, run_id):
+    try:
+        run = read_run_progress(str(run_id), str(request.user.pk))
+        context = {"run": run, "run_id": str(run_id), **progress_context(run)}
+        return render(request, "farmcredit/investigation_progress.html", context)
+    except PermissionError:
+        return HttpResponseForbidden("Sign in as a named officer to inspect progress.")
+    except DatabaseError:
+        return render(
+            request,
+            "farmcredit/investigation_error.html",
+            {
+                "error": "Progress could not be refreshed. The investigation may still be running. Reopen Applications to check its recorded outcome before retrying."
+            },
+            status=503,
+        )

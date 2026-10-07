@@ -1,4 +1,5 @@
 {% extends 'farmcredit/base.html' %}
+{% load presentation %}
 {% block title %}Sign in{% endblock %}
 {% block body %}
 <a class="skip-link" href="#main">Skip to sign in</a>
@@ -23,16 +24,16 @@
         {% if form.errors %}<div class="form-error" id="login-error" role="alert" tabindex="-1">Sign-in failed. Check your username and password, then try again.</div>{% endif %}
         {% for field in form %}
         <div class="field">
-          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          <label for="{{ field.id_for_label }}">{{ field.label|ui_text }}</label>
           {{ field }}
-          {% if field.errors %}<p class="form-error" id="{{ field.auto_id }}_error">{{ field.errors|striptags }}</p>{% endif %}
+          {% if field.errors %}<p class="form-error" id="{{ field.auto_id }}_error">{{ field.errors|striptags|ui_text }}</p>{% endif %}
         </div>
         {% endfor %}
         <input type="hidden" name="next" value="{{ next }}">
         <button class="primary" type="submit">Sign in <span aria-hidden="true">→</span></button>
       </form>
       <p class="signin-help">Need access? Ask your workspace administrator for an officer account.</p>
-      <p class="signin-demo">Competition demonstration · synthetic records</p>
+      <p class="signin-demo">Competition demonstration</p>
     </div>
     <div class="signin-footer">FarmCredit · Human-reviewed agricultural advisory</div>
   </main>

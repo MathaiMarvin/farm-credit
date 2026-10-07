@@ -1,0 +1,11 @@
+{% extends 'farmcredit/base.html' %}
+{% block title %}Try a what-if{% endblock %}
+{% block content %}
+<div class="assessment-page demo-page">
+<a href="{% url 'applications' %}">← Applications</a>
+<div class="page-heading"><div><p class="eyebrow">A little what-if · Guided demo</p><h1>A harvest is only half the story.</h1><p class="subtitle">Discover why the day money arrives matters.</p></div></div>
+<p class="fine-print">Household FC-001 · Maize · 2 acres · Trans Nzoia</p>
+{% include 'farmcredit/demo_scenario.html' %}
+<p class="fine-print">Calculation only, not a credit decision. Nothing here changes or saves an application.</p>
+</div>
+{% endblock %}

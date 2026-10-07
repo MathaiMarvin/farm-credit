@@ -1,0 +1,13 @@
+{% load presentation %}
+<section id="investigation-progress" class="card investigation-progress" data-watch="{{ watch|yesno:'true,false' }}" {% if run.started_at %}data-started-at="{{ run.started_at }}"{% endif %} aria-labelledby="progress-heading">
+<div class="progress-topline"><span class="eyebrow">Agent investigation</span><span class="progress-connection" data-connection-status>{% if watch %}Live updates{% else %}Recorded outcome{% endif %}</span></div>
+<div class="progress-current"><span class="progress-symbol {% if watch %}progress-spinner{% endif %}" aria-hidden="true">{% if not watch %}{% if run.status == 'completed' %}✓{% else %}!{% endif %}{% endif %}</span><div><h2 id="progress-heading">{{ progress_heading|ui_text }}</h2><p>{{ progress_message|ui_text }}</p></div></div>
+<p class="progress-brief"><strong data-elapsed>{{ run.elapsed_seconds|default:0|ui_text }}s</strong> elapsed · {{ completed_checks|default:0|ui_text }} check{{ completed_checks|default:0|pluralize }} returned{% if watch %} · Keep this page open{% endif %}</p>
+{% if recent_checks %}<div class="completed-checks"><p class="eyebrow">Just checked</p><ul class="studio-recent" aria-label="Recent recorded checks">{% for item in recent_checks %}<li data-state="{{ item.state }}"><span class="studio-check-state">{{ item.status|ui_text }}</span><div><strong>{{ item.label|ui_text }}</strong>{% if item.findings %}<p>{{ item.findings|length|ui_text }} evidence categor{{ item.findings|length|pluralize:"y,ies" }} returned{% if item.needs_review %} · {{ item.needs_review|ui_text }} need review{% endif %}</p>{% endif %}</div></li>{% endfor %}</ul></div>{% endif %}
+<details data-progress-details="activity"><summary>View activity{% if activity %} ({{ activity|length|ui_text }}){% endif %}</summary>
+{% if activity %}{% include 'farmcredit/run_activity.html' %}{% else %}<p class="progress-empty">Your application is saved. Recorded checks will appear here.</p>{% endif %}
+<p class="fine-print">{{ run.model_responses|default:0|ui_text }} of {{ run.model_requests|default:0|ui_text }} model requests returned.</p>
+{% if run %}<p><a href="{% url 'application-run' run_id %}" target="_blank" rel="noopener">Open recorded investigation <span class="sr-only">in a new tab</span>↗</a></p>{% endif %}
+</details>
+{% if run.draft_id %}<p><a class="secondary-link" href="{% url 'saved-draft' run.draft_id %}">Review the saved draft</a></p>{% endif %}
+</section>

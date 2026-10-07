@@ -2,9 +2,10 @@
 """Local demo configuration; not a production deployment configuration."""
 
 import os
-import secrets
 
-SECRET_KEY = os.environ.get("FARMCREDIT_SECRET_KEY") or secrets.token_urlsafe(50)
+from farmcredit.interfaces.web.local_config import local_secret
+
+SECRET_KEY = local_secret()
 DEBUG = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 ROOT_URLCONF = "farmcredit.interfaces.web.urls"
@@ -55,7 +56,7 @@ DATABASES = {
     }
 }
 LOGIN_URL = "/accounts/login/"
-LOGIN_REDIRECT_URL = "/"
+LOGIN_REDIRECT_URL = "/applications/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

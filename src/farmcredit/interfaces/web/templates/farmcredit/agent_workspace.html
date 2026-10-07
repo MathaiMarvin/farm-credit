@@ -1,0 +1,50 @@
+{% load presentation %}
+<section class="agent-workspace agent-studio" aria-labelledby="agent-heading" data-workspace-state="{% if turns %}review{% else %}start{% endif %}">
+  <header class="studio-toolbar"><span><span class="studio-dot" aria-hidden="true"></span> FarmCredit agent</span><span data-studio-status>{% if turns %}Review the recorded outcome{% else %}Ready when you are{% endif %}</span></header>
+  <ol class="studio-steps" aria-label="Investigation stages"><li data-studio-step="start"{% if not turns %} aria-current="step"{% endif %}><span>1</span> Ask</li><li data-studio-step="running"><span>2</span> Investigate</li><li data-studio-step="review"{% if turns %} aria-current="step"{% endif %}><span>3</span> Review</li></ol>
+  <div class="agent-introduction"><div><p class="eyebrow">{% if turns %}Continue the conversation{% else %}Let’s look closer{% endif %}</p><h2 id="agent-heading">{% if turns %}Your investigation{% else %}What should we investigate?{% endif %}</h2>{% if not turns %}<p>Choose a starting point or ask your own question. I’ll check the records and show you what needs attention.</p>{% endif %}</div></div>
+  {% if turns %}<button class="studio-history-toggle" type="button" aria-controls="agent-thread" aria-expanded="false" hidden>Show earlier conversation</button>{% endif %}
+  <div id="agent-thread" class="agent-thread" tabindex="-1" aria-label="Recent investigation requests and responses">
+    {% for turn in turns %}
+    {% if not forloop.last %}<details class="earlier-exchange"><summary>{{ turn.task|ui_text|truncatechars:85 }} <span class="fine-print">· {{ turn.started_at|date:"j M, H:i"|ui_text }} · {{ turn.status|ui_text }}</span></summary>{% endif %}
+    <article class="agent-turn"{% if forloop.last %} id="latest-exchange"{% endif %}>
+      <div class="agent-message officer-message"><p class="eyebrow">You · {{ turn.started_at|date:"j M, H:i"|ui_text }}</p><p>{{ turn.task|ui_text }}</p></div>
+      <div class="agent-message agent-reply"><p class="eyebrow">{% if turn.summary %}FarmCredit · Investigation complete{% else %}FarmCredit · Investigation status{% endif %}</p>
+        {% if turn.summary %}
+          {% include 'farmcredit/review_status.html' with advisory_status=turn.advisory_status %}
+          {% include 'farmcredit/finding_brief.html' with summary=turn.summary %}
+          {% if turn.summary.questions %}<div class="agent-next-step"><h4>Start with this</h4><p>{{ turn.summary.questions.0|ui_text }}</p></div>{% endif %}
+          <details class="response-details"><summary>Read the full response</summary>
+            {% for statement in turn.statements %}<p>{{ statement.text|ui_text }}</p>{% endfor %}
+            {% if turn.summary.questions %}<h4>All unresolved questions</h4><ul>{% for question in turn.summary.questions %}<li>{{ question|ui_text }}</li>{% endfor %}</ul>{% endif %}
+            <a href="{% url 'saved-draft' turn.draft_id %}#draft-sources">Inspect cited evidence</a>
+          </details>
+          <a class="secondary-link review-primary" href="{% url 'saved-draft' turn.draft_id %}">Review finding and sources →</a>
+          <a class="agent-followup" href="#agent-task">Ask a follow-up</a>
+        {% elif turn.status == 'active' %}<h3>Outcome not yet confirmed</h3><p>Open the investigation to check its recorded progress before sending another request.</p>
+        {% else %}<h3>I couldn’t complete this investigation.</h3><p>{{ turn.reason|default:'No saved finding was confirmed. Check the recorded activity before retrying.'|ui_text }}</p>{% endif %}
+        <a class="agent-trace-link" href="{% url 'application-run' turn.run_id %}">See recorded actions</a>
+      </div>
+    </article>{% if not forloop.last %}</details>{% endif %}
+    {% endfor %}
+  </div>
+  <div class="agent-message officer-message" id="pending-task" hidden><p class="eyebrow">You</p><p data-pending-task></p></div>
+  <div id="investigation-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  <section id="investigation-progress" hidden class="card investigation-progress" data-watch="true"><div class="progress-current"><span class="progress-symbol progress-spinner" aria-hidden="true"></span><div><h2 id="progress-heading">Starting investigation</h2><p>Connecting to the investigation service. No checks have started yet.</p></div></div><p><strong data-elapsed>0s</strong> elapsed</p></section>
+  {% if not model_configured %}<p class="form-error" role="status">The agent connection is not configured on this server. Your application is saved, but investigations cannot start until the server operator configures the model connection.</p>{% endif %}
+  {% if turns %}<details class="agent-composer followup-composer"><summary>Continue with the agent</summary>{% else %}<div class="agent-composer">{% endif %}
+    <details class="suggestion-disclosure"{% if not turns %} open{% endif %}><summary>Choose a starting point</summary><div class="agent-suggestions" aria-label="Suggested investigation requests">
+      <button type="button" data-agent-prompt="Investigate this application. What needs attention before an officer can assess it?"><strong>Investigate this application</strong><span>Bring the evidence together</span></button>
+      <button type="button" data-agent-prompt="Identify the missing or conflicting evidence in this application. What should I request next, and why?"><strong>Find missing evidence</strong><span>Know what to ask for next</span></button>
+      <button type="button" data-agent-prompt="Check whether the available records support the repayment assumptions. Highlight obligations and evidence limits that need my review."><strong>Check repayment assumptions</strong><span>See what the plan relies on</span></button>
+    </div></details>
+    <form action="{% url 'application-investigate' saved.application_id %}" method="post" data-investigation-form data-live-investigation data-progress-url="{% url 'investigation-progress' run_id %}" hx-post="{% url 'application-investigate' saved.application_id %}" hx-target="#investigation-progress" hx-swap="outerHTML" hx-request='{"timeout":130000}'>
+      {% csrf_token %}<input type="hidden" name="mode" value="model"><input type="hidden" name="conversation" value="true"><input type="hidden" name="investigation_token" value="{{ investigation_token }}">
+      <label for="agent-task">{% if turns %}Give the agent a follow-up task{% else %}Your investigation request{% endif %}</label>
+      <textarea id="agent-task" name="task" rows="2" maxlength="1000" required aria-describedby="agent-scope">{% if not turns %}{{ default_task|ui_text }}{% endif %}</textarea>
+      <div class="agent-send-row"><p id="agent-scope" class="fine-print">You control when the agent runs.</p><button class="primary" type="submit">Send to agent <span aria-hidden="true">↑</span></button></div>
+    </form>
+    <p class="studio-boundary">Advisory only · Your review is required</p>
+    <details class="agent-scope"><summary>How this agent works</summary><p>Selected records go to the hosted model. Follow-ups use the last saved response as context and investigate this version again. To change facts, edit the application.</p><p>Findings need your review; the agent cannot approve credit.</p></details>
+  {% if turns %}</details>{% else %}</div>{% endif %}
+</section>

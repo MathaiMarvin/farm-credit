@@ -21,7 +21,7 @@ class ScenarioForm(forms.Form):
         max_digits=8,
         decimal_places=2,
         widget=forms.NumberInput(attrs={"step": "0.01", "inputmode": "decimal"}),
-        help_text="A synthetic assumption, not a live market quotation.",
+        help_text="A planning assumption, not a live market quotation.",
     )
 
     price_reduction = forms.DecimalField(
@@ -64,12 +64,12 @@ class ApplicationForm(forms.Form):
         help_text="Historical wholesale context, not a buyer offer or farm-gate forecast. Retrieval occurs when you investigate; the assumed sale price stays unchanged.",
     )
     institution_record_set = forms.ChoiceField(
-        label="Synthetic institution file",
+        label="Institution file",
         required=False,
         choices=(("", "No matched institutional file"), *MEMBER_CHOICES),
-        help_text="Explicitly link this synthetic household to its demo cooperative records. Names are never used to guess a match.",
+        help_text="Link this household to its cooperative records. Names are never used to guess a match.",
     )
-    farmer = forms.CharField(label="Synthetic household reference", max_length=100)
+    farmer = forms.CharField(label="Household reference", max_length=100)
     farm = forms.CharField(label="Farm / plot reference", max_length=200, required=False)
     location = forms.CharField(label="Farm location", max_length=200, required=False)
     season = forms.CharField(label="Season", max_length=100, required=False)
@@ -113,7 +113,7 @@ class ApplicationForm(forms.Form):
         label="Source of supplied values",
         required=False,
         max_length=300,
-        help_text="Describe the synthetic record or explicit assumption behind these values. Leave blank when the source is unknown.",
+        help_text="Describe the record or explicit assumption behind these values. Leave blank when the source is unknown.",
     )
     recorded_on = forms.DateField(
         label="Source recording date",
@@ -127,7 +127,7 @@ class ApplicationForm(forms.Form):
             ("", "Unknown — request evidence"),
             ("declared", "Declared"),
             ("assumed", "Assumed"),
-            ("observed", "Observed in a synthetic record"),
+            ("observed", "Observed in a record"),
         ],
     )
 
@@ -145,6 +145,17 @@ class ApplicationForm(forms.Form):
                     label=label, required=False, min_value=0, max_digits=14, decimal_places=2
                 )
             )
+        # Display neutral wording without changing unchanged saved evidence on POST.
+        from farmcredit.interfaces.web.presentation import display_text
+
+        self.initial = dict(self.initial)
+        self._original_text = {}
+        for name, field in self.fields.items():
+            if isinstance(field, forms.CharField) and not isinstance(field, forms.ChoiceField):
+                original = self.initial.get(name)
+                if isinstance(original, str):
+                    self._original_text[name] = original
+                    self.initial[name] = display_text(original)
         self.order_fields(
             [
                 "farmer",
@@ -177,6 +188,11 @@ class ApplicationForm(forms.Form):
         from farmcredit.application.intake import intake_inputs
 
         data = super().clean()
+        from farmcredit.interfaces.web.presentation import display_text
+
+        for name, original in self._original_text.items():
+            if data.get(name) == display_text(original):
+                data[name] = original
         if data.get("recorded_on") and data["recorded_on"] > timezone.localdate():
             self.add_error("recorded_on", "The source recording date cannot be in the future.")
         if not self.errors:

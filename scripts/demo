@@ -1,0 +1,8 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
+set -eu
+cd "$(dirname "$0")/.."
+if [ -f .env ]; then
+  exec uv run --locked --env-file .env farmcredit demo "$@"
+fi
+exec uv run --locked farmcredit demo "$@"

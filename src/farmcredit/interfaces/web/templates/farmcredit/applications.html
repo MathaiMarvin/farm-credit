@@ -1,10 +1,16 @@
 {% extends 'farmcredit/base.html' %}
+{% load presentation %}
 {% block title %}Applications{% endblock %}
 {% block content %}<div class="assessment-page">
-<div class="page-heading"><div><p class="eyebrow">Demo cooperative · synthetic records</p><h1>Applications</h1><p class="subtitle">Save the facts you have. Investigate what is missing.</p></div><a class="secondary-link" href="{% url 'application-new' %}">New application</a></div>
-<section class="card calculation-body"><h2>Try a synthetic household</h2><p>Use the same cash-flow assumptions with three different institutional files. Each form can be reviewed before saving.</p>
-<div class="demo-households">{% for ref, label in demo_households %}<a class="secondary-link" href="{% url 'application-new' %}?demo={{ ref }}">{{ label }}</a>{% endfor %}</div>
-<p class="fine-print">The demo review policy requests missing history, flags unresolved arrears and checks recorded obligations. It is illustrative, not validated lending policy.</p></section>
+<div class="page-heading"><div><p class="eyebrow">Demo cooperative</p><h1>Applications</h1><p class="subtitle">Save the facts you have. Investigate what is missing.</p></div><a class="secondary-link" href="{% url 'application-new' %}">New application</a></div>
+<section class="card demo-welcome">
+<p class="eyebrow">Your agricultural credit investigation agent</p>
+<h2>Give the agent a case.<br>See what the evidence reveals.</h2>
+<p>Turn an incomplete application into a sourced assessment. Ask a question, watch the agent investigate, and review what needs your attention.</p>
+<a class="primary demo-start" href="{% url 'application-new' %}?demo=DEMO-001">Open a case with the agent <span aria-hidden="true">→</span></a>
+<p class="fine-print">You set the task. The agent checks evidence. You review the finding.</p>
+</section>
+<section class="card calculation-body"><h2>Try a different starting point</h2><p>Each case gives the agent different evidence to investigate.</p><div class="demo-households">{% for ref, label in demo_households %}<a class="secondary-link" href="{% url 'application-new' %}?demo={{ ref }}">{{ label|ui_text }}</a>{% endfor %}</div><p class="fine-print"><a href="{% url 'guided-demo' %}">Explore the repayment calculator separately →</a></p></section>
 <section class="card calculation-body"><h2>Your saved applications</h2>
-{% for item in applications %}<div class="draft-history-row"><a href="{% url 'application-intake' item.id %}">{{ item.farmer }} · v{{ item.version }}</a><span>{{ item.saved_at|date:"j M Y, H:i" }}</span></div>{% empty %}<p>No saved applications yet.</p>{% endfor %}
+{% for item in applications %}<div class="draft-history-row"><a href="{% url 'application-intake' item.id %}">{{ item.farmer|ui_text }} · v{{ item.version|ui_text }}</a><span>{{ item.saved_at|date:"j M Y, H:i"|ui_text }}</span></div>{% empty %}<p>No saved applications yet.</p>{% endfor %}
 </section></div>{% endblock %}

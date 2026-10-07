@@ -42,11 +42,11 @@ class WorkspaceTests(AuthenticatedWebTests):
     def test_initial_page_is_a_synthetic_case_not_an_assessment(self):
         response = self.client.get("/")
         self.assertContains(response, "Demo household FC-001")
-        self.assertContains(response, "All records are synthetic")
+        self.assertContains(response, "This calculation is not a credit decision")
         self.assertNotContains(response, "No shortfall in this scenario")
         self.assertContains(response, "csrfmiddlewaretoken")
         self.assertContains(response, "Inspect input sources (34)")
-        self.assertContains(response, "Synthetic cooperative planning worksheet")
+        self.assertContains(response, "Supplied cooperative planning worksheet")
 
     def test_scenario_edits_are_assumptions_not_cooperative_observations(self):
         response = self.client.post(
@@ -246,7 +246,7 @@ class WorkspaceTests(AuthenticatedWebTests):
 
     def test_monthly_demo_displays_supplied_schedule(self):
         response = self.client.get("/", {"repayment_mode": "monthly"})
-        self.assertContains(response, "Monthly instalments · synthetic terms")
+        self.assertContains(response, "Monthly instalments · supplied terms")
         self.assertContains(response, "demo-v1")
         self.assertContains(response, 'name="repayment_mode" value="monthly"')
         self.assertContains(response, "Inspect input sources (47)")
@@ -712,7 +712,8 @@ class WorkspaceAccessTests(AuthenticatedWebTests):
         self.client.logout()
         for target, expected in (
             ("/assessments/", "/assessments/"),
-            ("https://untrusted.example/", "/"),
+            ("https://untrusted.example/", "/applications/"),
+            ("", "/applications/"),
         ):
             response = self.client.post(
                 "/accounts/login/",
@@ -723,7 +724,7 @@ class WorkspaceAccessTests(AuthenticatedWebTests):
                 },
             )
             self.assertEqual(response.url, expected)
-            self.assertEqual(self.client.get("/accounts/login/").url, "/")
+            self.assertEqual(self.client.get("/accounts/login/").url, "/applications/")
             self.assertEqual(self.client.post("/accounts/logout/").url, "/accounts/login/")
             self.assertEqual(self.client.get("/assessments/").status_code, 302)
 

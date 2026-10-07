@@ -144,7 +144,27 @@ class ModelInvestigationTests(TransactionTestCase):
         provider = ScriptedProvider(failure=100)
         details = self.run_model(provider=provider)
         self.assertEqual(provider.count, 2)
+        self.assertIn("Scripted temporary outage.", details["reason"])
         self.assertEqual(details["status"], "incomplete")
+        self.assertFalse(Draft.objects.exists())
+
+    def test_provider_wait_longer_than_run_budget_is_explained_without_retry(self):
+        from unittest.mock import AsyncMock
+
+        provider = ScriptedProvider()
+        provider.complete = AsyncMock(
+            side_effect=ProviderFailure(
+                "Temporary provider budget exhausted.", retryable=True, retry_after=120
+            )
+        )
+        details = self.run_model(provider=provider)
+        self.assertEqual(provider.complete.await_count, 1)
+        self.assertEqual(details["status"], "incomplete")
+        self.assertIn("retry delay (120s)", details["reason"])
+        self.assertIn("no automatic retry was sent", details["reason"])
+        failure = next(e["payload"] for e in details["events"] if e["kind"] == "model_failure")
+        self.assertEqual(failure["retry_after"], 120)
+        self.assertFalse(failure["retry_scheduled"])
         self.assertFalse(Draft.objects.exists())
 
     def test_unsupported_action_is_recorded_and_never_executed(self):
