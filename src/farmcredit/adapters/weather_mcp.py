@@ -6,6 +6,8 @@ import json
 import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlencode
+from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 from mcp import Client
@@ -13,9 +15,6 @@ from mcp.client.stdio import StdioServerParameters
 
 from farmcredit.application.saved_assessments import canonical_json, input_fingerprint
 
-WEATHER_CHOICES = (
-    ("Nakuru", "Nakuru city reference — seven-day forecast, not exact farm weather"),
-)
 SERVER_PACKAGE = "open-meteo-mcp==0.2.0"
 TOOL = "get_weather_byDateTimeRange"
 MAX_RESPONSE_BYTES = 256 * 1024
@@ -63,20 +62,45 @@ async def fetch_weather(arguments: dict) -> dict:
         return parse_weather_response(result.model_dump(mode="json"))
 
 
+def resolve_reference(reference: str) -> dict:
+    # Preserve the original reference for historical snapshots and fixtures.
+    if reference == "Nakuru":
+        return {"name": "Nakuru", "latitude": -0.3031, "longitude": 36.0800, "country_code": "KE"}
+    url = "https://geocoding-api.open-meteo.com/v1/search?" + urlencode(
+        {"name": reference, "count": 100, "countryCode": "KE", "language": "en"}
+    )
+    with urlopen(url, timeout=10) as response:
+        body = response.read(MAX_RESPONSE_BYTES + 1)
+    if len(body) > MAX_RESPONSE_BYTES:
+        raise ValueError("Location search exceeded its size limit.")
+    matches = [
+        row
+        for row in json.loads(body).get("results", [])
+        if row.get("country_code") == "KE"
+        and row.get("name", "").casefold() == reference.casefold()
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "Weather location is missing or ambiguous. Supply an unambiguous Kenyan town name."
+        )
+    return {key: matches[0][key] for key in ("name", "latitude", "longitude", "country_code")}
+
+
 def snapshot_weather(reference: str, *, as_of: date, retrieved_at: datetime) -> str:
-    if reference not in dict(WEATHER_CHOICES):
-        raise ValueError("Unsupported weather reference.")
     arguments = {
         "city": reference,
         "start_date": as_of.isoformat(),
         "end_date": (as_of + timedelta(days=6)).isoformat(),
     }
-    raw, error = None, None
+    raw, error, location = None, None, None
     if as_of != datetime.now(ZoneInfo("Africa/Nairobi")).date():
         error = "Live weather cannot be retrieved for a historical or future review date. Use an appropriately archived forecast."
     else:
         try:
+            location = resolve_reference(reference)
             raw = asyncio.run(asyncio.wait_for(fetch_weather(arguments), timeout=30))
+        except ValueError as exception:
+            error = str(exception)
         except Exception:
             # MCP task-group, process, provider and malformed-response failures are all evidence gaps.
             error = "Weather evidence unavailable: the MCP server or provider did not return usable data."
@@ -93,6 +117,7 @@ def snapshot_weather(reference: str, *, as_of: date, retrieved_at: datetime) -> 
         "source_url": "https://open-meteo.com/en/docs",
         "license": "CC BY 4.0",
         "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "resolved_location": location,
         "raw": raw,
         "error": error,
     }

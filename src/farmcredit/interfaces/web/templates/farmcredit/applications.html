@@ -2,7 +2,8 @@
 {% load presentation %}
 {% block title %}Applications{% endblock %}
 {% block content %}<div class="assessment-page">
-<div class="page-heading"><div><p class="eyebrow">Demo cooperative</p><h1>Applications</h1><p class="subtitle">Save the facts you have. Investigate what is missing.</p></div><a class="secondary-link" href="{% url 'application-new' %}">New application</a></div>
+<div class="page-heading"><div><p class="eyebrow">Your workspace</p><h1>Applications</h1><p class="subtitle">Save the facts you have. Investigate what is missing.</p></div><a class="secondary-link" href="{% url 'application-new' %}">New application</a></div>
+{% if saved_notice %}<p class="notice" role="status">Application saved. You can return to it below whenever you are ready. The agent has not been started by this save.</p>{% endif %}
 <section class="card demo-welcome">
 <p class="eyebrow">Your agricultural credit investigation agent</p>
 <h2>Give the agent a case.<br>See what the evidence reveals.</h2>
@@ -12,5 +13,5 @@
 </section>
 <section class="card calculation-body"><h2>Try a different starting point</h2><p>Each case gives the agent different evidence to investigate.</p><div class="demo-households">{% for ref, label in demo_households %}<a class="secondary-link" href="{% url 'application-new' %}?demo={{ ref }}">{{ label|ui_text }}</a>{% endfor %}</div><p class="fine-print"><a href="{% url 'guided-demo' %}">Explore the repayment calculator separately →</a></p></section>
 <section class="card calculation-body"><h2>Your saved applications</h2>
-{% for item in applications %}<div class="draft-history-row"><a href="{% url 'application-intake' item.id %}">{{ item.farmer|ui_text }} · v{{ item.version|ui_text }}</a><span>{{ item.saved_at|date:"j M Y, H:i"|ui_text }}</span></div>{% empty %}<p>No saved applications yet.</p>{% endfor %}
+{% for item in applications %}<div class="draft-history-row"><a href="{% url 'application-intake' item.id %}">{{ item.farmer|ui_text }} · v{{ item.version|ui_text }}</a><a href="{% url 'application-intake' item.id %}#application-records">Continue editing</a><span>{{ item.saved_at|date:"j M Y, H:i"|ui_text }}</span></div>{% empty %}<p>No saved applications yet.</p>{% endfor %}
 </section></div>{% endblock %}

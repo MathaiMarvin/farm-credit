@@ -187,6 +187,7 @@ class DraftReviewTests(TransactionTestCase):
         self.assertNotContains(response, "<script>alert(1)</script>")
         self.assertContains(response, 'href="#source-1"')
 
+    @override_settings(ROOT_URLCONF="legacy_urls")
     def test_assessment_links_to_draft_and_page_shows_early_gap(self):
         response = self.client.get(f"/assessments/{self.saved.assessment_id}/")
         self.assertContains(response, self.url)

@@ -292,7 +292,7 @@ class ApplicationTests(TransactionTestCase):
         self.assertCountEqual(outcomes, [2, "stale"])
         self.assertEqual(ApplicationVersion.objects.count(), 2)
 
-    def test_old_assessment_stays_readable_and_current(self):
+    def test_old_assessment_is_preserved_but_web_access_is_retired(self):
         from test_get_case import saved_fixture
 
         from farmcredit.adapters.assessment_store import AssessmentStore
@@ -309,7 +309,7 @@ class ApplicationTests(TransactionTestCase):
             self.client.get(
                 reverse("saved-assessment", args=[assessment.assessment_id])
             ).status_code,
-            200,
+            410,
         )
 
     def test_web_storage_failure_and_failed_run_are_visible(self):
@@ -391,7 +391,8 @@ class ApplicationTests(TransactionTestCase):
         saved = self.save({**intake_data(complete=True), "crop": "other"})
         details = self.investigate(saved)
         self.assertIn(
-            "only maize is supported", Draft.objects.get(pk=details["draft_id"]).snapshot_json
+            "name the crop or enterprise to investigate",
+            Draft.objects.get(pk=details["draft_id"]).snapshot_json,
         )
 
     def test_application_bound_stdio_can_request_evidence_without_calculation(self):

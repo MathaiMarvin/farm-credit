@@ -16,7 +16,7 @@ from farmcredit.adapters.persistence.models import ApplicationVersion
 from farmcredit.application.intake import intake_label
 from farmcredit.domain.draft_review import DraftReviewRequest
 from farmcredit.domain.review import Officer
-from farmcredit.interfaces.web.walkthrough import advisory_status, review_summary
+from farmcredit.interfaces.web.walkthrough import advisory_status, review_summary, statement_cards
 
 
 def _render_draft(request, draft_id, *, error=None, status=200, note=""):
@@ -39,7 +39,6 @@ def _render_draft(request, draft_id, *, error=None, status=200, note=""):
     shortfalls = (
         [row for row in baseline["balances"] if Decimal(row["amount"]) < 0] if baseline else []
     )
-    anchors = {source["record_id"]: index for index, source in enumerate(snapshot["sources"], 1)}
     context.update(
         {
             "baseline": baseline,
@@ -55,15 +54,7 @@ def _render_draft(request, draft_id, *, error=None, status=200, note=""):
                 for issue in snapshot["calculation"]["issues"]
             ],
             "shortfalls": shortfalls,
-            "statements": [
-                {
-                    "text": item["text"],
-                    "citations": [
-                        {"record_id": key, "anchor": anchors[key]} for key in item["record_ids"]
-                    ],
-                }
-                for item in snapshot["statements"]
-            ],
+            "statements": statement_cards(snapshot),
             "error": error,
             "note": note,
         }

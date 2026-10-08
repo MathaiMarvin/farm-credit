@@ -58,11 +58,11 @@ def review_quote(quote: MarketQuote, *, as_of: date) -> MarketReview:
             "Within the demo's 90-day freshness limit; this is not a future price forecast."
         )
     if status != "context_only":
-        questions.append("Obtain a current, dated maize buyer quote for the proposed sale market.")
+        questions.append("Obtain a current, dated buyer quote for the proposed sale market.")
     findings.append(
         f"{quote.price_type} market evidence is not a confirmed farm-gate receipt. The officer's sale assumption is unchanged."
     )
     questions.append(
-        "Confirm the buyer, maize grade, sale location, price basis, and transport/selling costs before using a market quote in a separate scenario."
+        "Confirm the buyer, commodity and grade, sale location, price basis, and transport/selling costs before using a market quote in a separate scenario."
     )
     return MarketReview(status, normalized, tuple(findings), tuple(questions))

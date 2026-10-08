@@ -40,6 +40,20 @@ def assess_market(
         raise ValueError("Market evidence does not match the application and review date.")
     if datetime.fromisoformat(snapshot["retrieved_at"]).tzinfo is None:
         raise ValueError("Market retrieval requires a timezone.")
+    crop = inputs.get("context", {}).get("crop", "maize")
+    if snapshot.get("crop", "maize").casefold() != crop.casefold():
+        raise ValueError("Market evidence belongs to a different crop.")
+    if reference_field == "kamis_market_reference" and "county" in snapshot:
+        context = inputs.get("context", {})
+        county = context.get("kamis_county") or (
+            "Nakuru" if snapshot["market"] == "Nakuru Wakulima" else ""
+        )
+        if (
+            snapshot["county"].casefold() != county.casefold()
+            or (snapshot.get("classification") or "").casefold()
+            != (context.get("kamis_classification") or "").casefold()
+        ):
+            raise ValueError("KAMIS evidence does not match the county and variety selection.")
     row = snapshot["quote"]
     quote = (
         MarketQuote(
@@ -59,7 +73,7 @@ def assess_market(
             "unavailable",
             None,
             (snapshot["error"],),
-            ("Obtain a current, dated maize buyer quote for the proposed sale market.",),
+            ("Obtain a current, dated buyer quote for the proposed sale market.",),
         )
     )
     sources = (

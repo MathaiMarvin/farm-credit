@@ -75,6 +75,8 @@ function setWorkspaceState(state) {
   });
   studio.querySelector(".agent-introduction").hidden = state === "running";
   studio.querySelector(".agent-composer").hidden = state === "running";
+  const nextRequest = studio.querySelector(".next-request");
+  if (nextRequest) nextRequest.hidden = state !== "running" && !document.querySelector("#next-task").value;
   studio.querySelector("#agent-thread").hidden = state === "running";
   const history = studio.querySelector(".studio-history-toggle");
   if (history) {
@@ -157,13 +159,15 @@ async function refreshInvestigation(url) {
     const current = document.querySelector("#investigation-progress");
     for (const attribute of Array.from(current.attributes)) current.removeAttribute(attribute.name);
     for (const attribute of next.attributes) current.setAttribute(attribute.name, attribute.value);
-    const expanded = Array.from(current.querySelectorAll("details[data-progress-details][open]"))
-      .map(detail => detail.dataset.progressDetails);
+    const disclosureStates = new Map(Array.from(current.querySelectorAll("details[data-progress-details]"))
+      .map(detail => [detail.dataset.progressDetails, detail.open]));
     const focusedDetail = document.activeElement?.closest("details[data-progress-details]")?.dataset.progressDetails;
     const summaryFocused = document.activeElement?.tagName === "SUMMARY";
     current.innerHTML = next.innerHTML;
     current.querySelectorAll("details[data-progress-details]").forEach(detail => {
-      detail.open = expanded.includes(detail.dataset.progressDetails);
+      if (disclosureStates.has(detail.dataset.progressDetails)) {
+        detail.open = disclosureStates.get(detail.dataset.progressDetails);
+      }
       if (summaryFocused && detail.dataset.progressDetails === focusedDetail) {
         detail.querySelector("summary")?.focus({preventScroll: true});
       }
@@ -209,6 +213,7 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   if (progress) event.detail.target = progress;
   if (event.detail.xhr.status >= 400) {
     setWorkspaceState("interrupted");
+    if (!document.querySelector("#next-task")?.value) saveFollowupDraft(document.querySelector("#agent-task").value);
     event.detail.shouldSwap = true;
     event.detail.isError = false;
     document.querySelectorAll("[data-investigation-form] button, [data-agent-prompt]").forEach(button => { button.disabled = false; });
@@ -240,7 +245,16 @@ document.addEventListener("click", (event) => {
   if (!suggestion) return;
   const composer = document.querySelector("#agent-task");
   if (!composer || composer.disabled) return;
-  composer.value = suggestion.dataset.agentPrompt;
+  const draft = composer.value.trim();
+  const text = composer.closest(".followup-composer") && draft
+    ? `${draft}\n\nFocus: ${suggestion.dataset.agentPrompt}` : suggestion.dataset.agentPrompt;
+  if (text.length > composer.maxLength) {
+    document.querySelector("#composer-feedback").textContent = "Your draft is unchanged. Shorten it before adding another focus (1,000 characters maximum).";
+    composer.focus();
+    return;
+  }
+  composer.value = text;
+  composer.dispatchEvent(new Event("input", {bubbles: true}));
   composer.focus();
 });
 document.addEventListener("htmx:beforeRequest", (event) => {
@@ -318,3 +332,84 @@ document.addEventListener("invalid", event => {
     element = element.parentElement;
   }
 }, true);
+
+// Drafting is local to this tab and case. A draft never starts or interrupts a run.
+const followupStudio = document.querySelector("[data-draft-key]");
+const followupTask = document.querySelector("#agent-task");
+const nextTask = document.querySelector("#next-task");
+const composerFeedback = document.querySelector("#composer-feedback");
+function saveFollowupDraft(value) {
+  if (!followupStudio) return false;
+  try {
+    if (value) sessionStorage.setItem(followupStudio.dataset.draftKey, value);
+    else sessionStorage.removeItem(followupStudio.dataset.draftKey);
+    return true;
+  } catch { return false; }
+}
+if (followupStudio && followupTask) {
+  try {
+    const draft = sessionStorage.getItem(followupStudio.dataset.draftKey);
+    if (draft) {
+      followupTask.value = draft;
+      composerFeedback.textContent = "Your unsent draft is ready. Review it, then send when you’re ready.";
+    }
+  } catch { /* The composer remains usable without browser storage. */ }
+  followupTask.addEventListener("input", () => {
+    composerFeedback.textContent = saveFollowupDraft(followupTask.value)
+      ? "Draft kept in this tab · Not sent" : "Draft could not be kept. Copy it before leaving this page.";
+  });
+}
+nextTask?.addEventListener("input", () => {
+  document.querySelector("[data-next-draft-status]").textContent = saveFollowupDraft(nextTask.value)
+    ? "Draft kept in this tab · Not sent" : "Draft could not be kept. Copy it before the run finishes.";
+});
+document.addEventListener("click", event => {
+  const answer = event.target.closest("[data-answer-question]");
+  if (!answer || !followupTask) return;
+  event.preventDefault();
+  const target = followupStudio.dataset.workspaceState === "running" ? nextTask : followupTask;
+  const question = `Regarding: ${answer.dataset.answerQuestion}\nMy information (source and date): `;
+  const draft = target.value.trim();
+  const combined = draft ? `${draft}\n\n${question}` : question;
+  if (combined.length > target.maxLength) {
+    const feedback = target === nextTask ? document.querySelector("[data-next-draft-status]") : composerFeedback;
+    feedback.textContent = "Your draft is unchanged. Shorten it before adding this question (1,000 characters maximum).";
+  } else {
+    target.value = combined;
+    target.dispatchEvent(new Event("input", {bubbles: true}));
+  }
+  if (target === nextTask) target.closest("details").open = true;
+  target.focus();
+  target.scrollIntoView({block: "center", behavior: "auto"});
+});
+document.addEventListener("htmx:beforeRequest", event => {
+  if (!event.detail.elt.matches("[data-live-investigation]")) return;
+  saveFollowupDraft("");
+  if (nextTask) nextTask.value = "";
+});
+
+document.querySelector("#agent-task")?.addEventListener("keydown", event => {
+  if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey) || event.isComposing) return;
+  event.preventDefault();
+  const form = event.currentTarget.form;
+  const send = form.querySelector("button[type=submit]");
+  if (!send.disabled) form.requestSubmit(send);
+});
+
+// Saving is explicit. Warn before leaving changed application facts behind.
+const intakeForm = document.querySelector('#case-intake');
+if (intakeForm) {
+  let intakeDirty = false;
+  intakeForm.addEventListener('input', () => {
+    intakeDirty = true;
+    const status = document.querySelector('#intake-save-status');
+    if (status) status.textContent = 'You have unsaved changes. Save to keep them and return later.';
+  });
+  intakeForm.addEventListener('submit', () => { intakeDirty = false; });
+  window.addEventListener('beforeunload', event => {
+    if (!intakeDirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
+  document.querySelector('#intake-errors')?.focus();
+}

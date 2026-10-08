@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Officer-facing presentation of already recorded results; no financial calculations."""
 
+import re
 from decimal import Decimal
 
 from farmcredit.application.intake import intake_label
@@ -25,6 +26,124 @@ CATEGORY_LABELS = {
     "kamis_prices": "KAMIS market prices",
     "weather": "Weather forecast",
 }
+
+
+def application_evidence(brief):
+    """Inventory supplied values without treating them as verified evidence."""
+    groups = (
+        (
+            "Household cash",
+            "Opening cash, income, expenses and dates covered.",
+            ("starts_on", "opening_cash", "coverage_through", "cash/"),
+        ),
+        ("Harvest and sale", "Harvest, household use, losses, price and payment date.", ("sale.",)),
+        (
+            "Loan and repayments",
+            "Amount borrowed, charges and the dated repayment schedule.",
+            ("financing.", "repayment/"),
+        ),
+    )
+    result = []
+    for label, purpose, prefixes in groups:
+        facts = [fact for fact in brief.facts if fact.field.startswith(prefixes)]
+        gaps = [gap for gap in brief.gaps if gap.field.startswith(prefixes)]
+        result.append(
+            {
+                "label": label,
+                "purpose": purpose,
+                "status": "Needs information" if gaps or not facts else "Supplied · not verified",
+                "facts": [
+                    {
+                        "label": intake_label(fact.field),
+                        "value": fact.value,
+                        "unit": fact.unit,
+                        "basis": ", ".join(
+                            sorted(
+                                {
+                                    record.basis.value
+                                    for record in brief.sources
+                                    if record.input.field == fact.field
+                                }
+                            )
+                        )
+                        or "Not recorded",
+                    }
+                    for fact in facts
+                ],
+                "gaps": [{"label": intake_label(gap.field), "reason": gap.reason} for gap in gaps],
+            }
+        )
+    return result
+
+
+def evidence_readiness(snapshot, baseline, gaps, questions):
+    """Explain recorded review checkpoints; never estimate repayment probability."""
+    review = (snapshot.get("institution") or {}).get("review", {})
+    institution_clear = review.get("status") == "checks_satisfied"
+    rows = [
+        {
+            "label": "Institution checks",
+            "clear": institution_clear,
+            "status": "Clear in supplied file"
+            if institution_clear
+            else "Officer review needed"
+            if review.get("status") == "officer_review"
+            else "Evidence needed",
+            "detail": "Repayment history, arrears and obligations are checked against the supplied policy."
+            if review
+            else "No institutional review is recorded in this finding.",
+        },
+        {
+            "label": "Repayment timing",
+            "clear": baseline is not None and not gaps,
+            "status": "No dated cash gap"
+            if baseline is not None and not gaps
+            else "Cash gap found"
+            if gaps
+            else "Not established",
+            "detail": "Compares money available on each date with repayments under the recorded assumptions.",
+        },
+        {
+            "label": "Open evidence questions",
+            "clear": not questions,
+            "status": f"{len(questions)} to resolve" if questions else "None recorded",
+            "detail": "Includes questions from source reviews and the saved finding. Unchecked sources are not verified.",
+        },
+    ]
+    clear = sum(row["clear"] for row in rows)
+    return {
+        "clear": clear,
+        "total": len(rows),
+        "rows": rows,
+        "label": "Ready for human review" if clear == len(rows) else "Further review needed",
+    }
+
+
+def evidence_progress(calls):
+    """Latest recorded category states, including unavailable evidence and failed reads."""
+    rows = {}
+    for call in calls:
+        if call["tool"] != "get_records":
+            continue
+        for category in call.get("arguments", {}).get("categories", []):
+            rows[category] = {
+                "label": CATEGORY_LABELS.get(category, category),
+                "status": "Checking"
+                if call["status"] == "running"
+                else "Read failed"
+                if call["status"] == "failed"
+                else "No result recorded",
+            }
+        if call["status"] == "succeeded":
+            for group in (call.get("result") or {}).get("groups", []):
+                category = group["category"]
+                rows[category] = {
+                    "label": CATEGORY_LABELS.get(category, category),
+                    "status": "Available · not verified"
+                    if group["status"] == "available"
+                    else group["status"].replace("_", " ").capitalize(),
+                }
+    return list(rows.values())
 
 
 def activity_rows(calls):
@@ -90,7 +209,7 @@ def progress_context(run):
         categories = current.get("arguments", {}).get("categories", [])
         message = (
             f"Checking {len(categories)} evidence categories against this application. "
-            "Open activity to see the requested records."
+            "Their recorded status appears below."
             if categories
             else "Waiting for this check to return its recorded result."
         )
@@ -120,6 +239,7 @@ def progress_context(run):
         "progress_message": message,
         "watch": run["status"] == "active" and not run.get("timed_out"),
         "activity": activity_rows(run["calls"]),
+        "evidence_progress": evidence_progress(run["calls"]),
         "recent_checks": activity_rows(
             [call for call in run["calls"] if call["status"] != "running"][-2:]
         ),
@@ -182,6 +302,7 @@ def review_summary(snapshot):
         headline = "Ready for an officer’s review"
         next_step = "Check the sources and assumptions, then record your advisory review."
     return {
+        "readiness": evidence_readiness(snapshot, baseline, gaps, questions),
         "headline": headline,
         "next_step": next_step,
         "tone": "attention" if questions or gaps or not baseline else "neutral",
@@ -212,6 +333,24 @@ def advisory_status(context):
     return {"label": label, "tone": tone, "review": review}
 
 
+def statement_cards(snapshot):
+    """Replace redundant inline record markers with links to the same saved sources."""
+    anchors = {
+        source["record_id"]: index for index, source in enumerate(snapshot.get("sources", []), 1)
+    }
+    cards = []
+    for statement in snapshot.get("statements", []):
+        text = statement["text"]
+        citations = []
+        for key in statement.get("record_ids", []):
+            if key not in anchors:
+                continue
+            text = re.sub(r"\s*\(record_id:\s*" + re.escape(key) + r"\)", "", text)
+            citations.append({"anchor": anchors[key], "record_id": key})
+        cards.append({"text": text, "citations": citations})
+    return cards
+
+
 def conversation_turns(application_id, officer_id):
     import json
 
@@ -234,7 +373,7 @@ def conversation_turns(application_id, officer_id):
                 if run.draft_id
                 else None,
                 "summary": review_summary(snapshot) if snapshot else None,
-                "statements": snapshot.get("statements", []) if snapshot else [],
+                "statements": statement_cards(snapshot) if snapshot else [],
                 "started_at": run.started_at,
             }
         )
