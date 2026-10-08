@@ -24,8 +24,10 @@ from farmcredit.application.intake import intake_label
 from farmcredit.application.investigation import DEFAULT_TASK, validate_task
 from farmcredit.interfaces.mcp.investigation import investigate_application_with_model
 from farmcredit.interfaces.web.forms import ApplicationForm
+from farmcredit.interfaces.web.intake_guidance import form_sections
 from farmcredit.interfaces.web.walkthrough import (
     activity_rows,
+    application_evidence,
     conversation_turns,
     progress_context,
 )
@@ -70,11 +72,13 @@ def applications(request):
             .order_by("case_id", "-version")
             .distinct("case_id")
         )
+        rows = list(rows)
         return render(
             request,
             "farmcredit/applications.html",
             {
                 "demo_households": MEMBER_CHOICES,
+                "saved_notice": any(str(row.pk) == request.GET.get("saved") for row in rows),
                 "applications": [
                     {
                         "id": row.pk,
@@ -104,6 +108,8 @@ def application_intake(request, application_id=None):
                 initial["market_reference"] = "Nakuru"
                 initial["kamis_market_reference"] = "Nakuru Wakulima"
                 initial["weather_reference"] = "Nakuru"
+                initial["kamis_county"] = "Nakuru"
+                initial["production_pattern"] = "single_harvest"
             except ValueError:
                 return HttpResponseBadRequest("Unknown household.")
         form = ApplicationForm(request.POST if request.method == "POST" else None, initial=initial)
@@ -146,11 +152,19 @@ def application_intake(request, application_id=None):
                         form.add_error(None, str(error))
                         status = 409
                     else:
-                        return redirect("application-intake", application_id=result.application_id)
+                        if request.POST.get("save_action") == "later":
+                            return redirect(
+                                reverse("applications") + "?saved=" + result.application_id
+                            )
+                        return redirect(
+                            reverse("application-intake", args=[result.application_id])
+                            + "#agent-heading"
+                        )
                 else:
                     status = 400
         context = {
             "form": form,
+            "form_sections": form_sections(form),
             "saved": saved,
             "save_token": token,
             "demo_preview": bool(not saved and request.GET.get("demo")),
@@ -184,6 +198,7 @@ def application_intake(request, application_id=None):
                     application_id=saved.application_id, officer=request.user
                 ).order_by("-started_at"),
             )
+            context["evidence_inventory"] = application_evidence(context["brief"])
             context["turns"] = conversation_turns(saved.application_id, officer_id)
             context["gaps"] = [
                 {"label": intake_label(gap.field), "reason": gap.reason}

@@ -209,6 +209,14 @@ def get_case(
             if not (issue.field in unknown and issue.reason == "unknown input")
         )
         if scope.application_id:
+            if not inputs.get("institution_record_set"):
+                gaps.append(
+                    EvidenceIssue(
+                        "institution_record_set",
+                        "supply this institution’s policy and records; no linked file is available",
+                        (),
+                    )
+                )
             financing = inputs["case"]["financing"]
             repayments = tuple(
                 Repayment(date.fromisoformat(row["on"]), -_value(row["amount"], "KES"))
@@ -221,8 +229,17 @@ def get_case(
             for field in ("farmer", "farm", "location", "season", "area_hectares"):
                 if not inputs["context"].get(field):
                     gaps.append(EvidenceIssue(field, "value not recorded", ()))
-            if inputs["context"].get("crop") != "maize":
-                gaps.append(EvidenceIssue("crop", "only maize is supported", ()))
+            if (inputs["context"].get("crop") or "").strip().lower() in {"", "other"}:
+                gaps.append(EvidenceIssue("crop", "name the crop or enterprise to investigate", ()))
+            pattern = inputs["context"].get("production_pattern", "single_harvest")
+            if pattern != "single_harvest":
+                gaps.append(
+                    EvidenceIssue(
+                        "production_pattern",
+                        "confirm a single harvest sold in kilograms, or obtain a cash-flow model for the recorded production pattern",
+                        (),
+                    )
+                )
             if not financing["schedule_source"] or not financing["schedule_version"]:
                 gaps.append(
                     EvidenceIssue(

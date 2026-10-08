@@ -69,10 +69,17 @@ def assess_weather(snapshot_json: str, inputs: dict, *, as_of: date) -> WeatherA
                 )
                 for row in raw["weather_data"]
             )
+            location = snapshot.get("resolved_location")
+            if location is None and snapshot["reference"] == "Nakuru":
+                location = {"latitude": "-0.3031", "longitude": "36.0800"}
+            if location is None:
+                raise ValueError("No independently resolved weather location.")
             case = inputs["case"]
             review = review_weather(
                 latitude=latitude,
                 longitude=longitude,
+                expected_latitude=Decimal(str(location["latitude"])),
+                expected_longitude=Decimal(str(location["longitude"])),
                 hours=hours,
                 as_of=as_of,
                 season_start=date.fromisoformat(case["starts_on"]) if case["starts_on"] else None,

@@ -26,19 +26,25 @@ def review_weather(
     *,
     latitude: Decimal,
     longitude: Decimal,
+    expected_latitude: Decimal,
+    expected_longitude: Decimal,
     hours: tuple[WeatherHour, ...],
     as_of: date,
     season_start: date | None,
     season_end: date | None,
 ) -> WeatherReview:
-    """The supported location is an explicitly selected Nakuru city reference."""
+    """Check returned geography against the independently resolved reference."""
     if (
-        not latitude.is_finite()
+        not expected_latitude.is_finite()
+        or not expected_longitude.is_finite()
+        or not -90 <= latitude <= 90
+        or not -180 <= longitude <= 180
+        or not latitude.is_finite()
         or not longitude.is_finite()
-        or abs(latitude - Decimal("-0.3031")) > Decimal("0.1")
-        or abs(longitude - Decimal("36.0800")) > Decimal("0.1")
+        or abs(latitude - expected_latitude) > Decimal("0.1")
+        or abs(longitude - expected_longitude) > Decimal("0.1")
     ):
-        raise ValueError("Returned coordinates do not match the selected Nakuru reference area.")
+        raise ValueError("Returned coordinates do not match the selected reference area.")
     expected = tuple(
         datetime.combine(as_of, datetime.min.time()) + timedelta(hours=i) for i in range(168)
     )

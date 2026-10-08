@@ -124,6 +124,9 @@ def start_run(
                 else None,
                 kamis_snapshot_json=snapshot_kamis(
                     inputs["context"]["kamis_market_reference"],
+                    crop=inputs["context"]["crop"],
+                    county=inputs["context"].get("kamis_county"),
+                    classification=inputs["context"].get("kamis_classification"),
                     as_of=reader.scope.evidence_as_of,
                     retrieved_at=timezone.now(),
                 )
@@ -131,6 +134,7 @@ def start_run(
                 else None,
                 market_snapshot_json=snapshot_market(
                     inputs.get("context", {}).get("market_reference"),
+                    crop=inputs["context"]["crop"],
                     as_of=reader.scope.evidence_as_of,
                     retrieved_at=timezone.now(),
                 ),
@@ -356,7 +360,15 @@ def retrieve_evidence(run, reader, categories):
         if not selected:
             continue
         started = timezone.now()
-        snapshot = fetch(selected, as_of=reader.scope.evidence_as_of, retrieved_at=started)
+        options = {}
+        if category in {"market_prices", "kamis_prices"}:
+            options["crop"] = inputs["context"]["crop"]
+        if category == "kamis_prices":
+            options["county"] = inputs["context"].get("kamis_county")
+            options["classification"] = inputs["context"].get("kamis_classification")
+        snapshot = fetch(
+            selected, as_of=reader.scope.evidence_as_of, retrieved_at=started, **options
+        )
         RunEvidence.objects.create(run=run, category=category, snapshot_json=snapshot)
         record_event(
             run.pk,

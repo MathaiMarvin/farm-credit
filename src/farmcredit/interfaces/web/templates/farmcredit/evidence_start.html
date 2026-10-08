@@ -1,0 +1,14 @@
+{% load presentation %}
+<section class="evidence-start" aria-label="Your starting evidence">
+<p class="eyebrow">Your starting evidence</p><h3>A saved case is enough to start.</h3>
+<p>The agent can investigate an incomplete application. To calculate repayment, it needs dated cash records, harvest assumptions, loan terms and a usable institution file.</p>
+<details class="evidence-inventory"><summary>What data will the agent use?</summary>
+{% for group in evidence_inventory %}<details class="evidence-group"><summary>{{ group.label }} <span>{{ group.status }}</span></summary><p>{{ group.purpose }}</p>
+<dl class="evidence-values">{% for fact in group.facts %}<div><dt>{{ fact.label|ui_text }}</dt><dd>{% if fact.value == None %}Not supplied{% else %}{{ fact.value|ui_text }}{% if fact.unit != 'date' %} {{ fact.unit }}{% endif %}{% endif %}<small>{{ fact.basis|ui_text }}</small></dd></div>{% endfor %}</dl>
+{% if group.gaps %}<ul>{% for gap in group.gaps %}<li>{{ gap.label|ui_text }}: {{ gap.reason|ui_text }}</li>{% endfor %}</ul>{% endif %}</details>{% endfor %}
+<div class="evidence-group"><h4>Institution file · {% if brief.context.institution_record_set %}Linked, awaiting checks{% else %}Not linked{% endif %}</h4><p>Repayment history, existing debts, savings restrictions and review policy. Linking a file does not mean its evidence is complete.</p></div>
+<div class="evidence-group"><h4>Market and weather · Not checked yet</h4><p>The agent can request price and weather context. Unavailable or unsuitable sources remain gaps; they do not replace your assumptions.</p></div>
+<a href="#application-records">Inspect or edit the saved application →</a></details>
+{% if gaps %}<p class="evidence-start-note">{{ gaps|length }} input issue{{ gaps|length|pluralize }} recorded. You can ask the agent what to obtain next.</p>{% endif %}
+<p class="fine-print">You’ll get a finding, open questions and a next step for your review.</p>
+</section>

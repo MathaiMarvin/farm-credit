@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (c) 2026 MathaiMarvin
 
-"""Typed inputs for one seasonal maize case with direct supplier financing."""
+"""Typed inputs for one seasonal harvest case with direct supplier financing."""
 
 from dataclasses import dataclass
 from datetime import date

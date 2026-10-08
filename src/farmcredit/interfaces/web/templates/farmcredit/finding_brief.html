@@ -3,6 +3,12 @@
   <p class="eyebrow">What the investigation found</p>
   <h3>{{ summary.headline|ui_text }}</h3>
   <p>{{ summary.next_step|ui_text }}</p>
+  <details class="readiness-card">
+<summary><span><span class="eyebrow">Evidence readiness</span><strong>{{ summary.readiness.label }}</strong></span><span class="readiness-count">{{ summary.readiness.clear }} / {{ summary.readiness.total }}<small>review checks clear</small></span></summary>
+<p class="fine-print">A checklist of this saved finding, not a credit score or probability of repayment. A clear check does not cancel an unresolved one.</p>
+<ul class="readiness-checks">{% for check in summary.readiness.rows %}<li><span aria-hidden="true">{% if check.clear %}✓{% else %}!{% endif %}</span><div><strong>{{ check.label }} · {{ check.status }}</strong><p>{{ check.detail }}</p></div></li>{% endfor %}</ul>
+</details>
+  <p class="fine-print readiness-caption">Recorded review checks · Not a repayment probability or loan approval</p>
   <div class="finding-facts">
     <div><span>Repayment calculation</span><strong>{% if summary.cash_after == None %}Not yet established{% elif summary.first_gap %}A dated cash gap{% else %}No dated cash gap{% endif %}</strong><small>Under the recorded assumptions</small></div>
     <div><span>After final repayment</span><strong>{% if summary.cash_after != None %}KSh {{ summary.cash_after|floatformat:"2g"|ui_text }}{% else %}Not calculated{% endif %}</strong><small>{% if summary.first_gap %}A later surplus does not cover an earlier gap{% else %}Expected cash remaining, not an approval{% endif %}</small></div>

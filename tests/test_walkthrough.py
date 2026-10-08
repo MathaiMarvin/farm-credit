@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+import json
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -10,12 +11,74 @@ from django.test import SimpleTestCase, TransactionTestCase
 from django.urls import reverse
 
 from farmcredit.adapters.agent_runs import start_run
-from farmcredit.adapters.persistence.models import AgentRun, ToolCall
+from farmcredit.adapters.persistence.models import AgentRun, Draft, ToolCall
 from farmcredit.adapters.run_progress import read_run_progress
-from farmcredit.interfaces.web.walkthrough import advisory_status, progress_context, review_summary
+from farmcredit.interfaces.web.walkthrough import (
+    advisory_status,
+    evidence_progress,
+    progress_context,
+    review_summary,
+    statement_cards,
+)
 
 
 class SummaryTests(SimpleTestCase):
+    def test_statement_links_remove_only_recognised_duplicate_markers(self):
+        snapshot = {
+            "sources": [{"record_id": "price:1"}],
+            "statements": [
+                {
+                    "text": "Assumed price (record_id: price:1). Unverified (record_id: foreign).",
+                    "record_ids": ["price:1"],
+                }
+            ],
+        }
+        card = statement_cards(snapshot)[0]
+        self.assertEqual(card["text"], "Assumed price. Unverified (record_id: foreign).")
+        self.assertEqual(card["citations"], [{"anchor": 1, "record_id": "price:1"}])
+        self.assertIn("(record_id: price:1)", snapshot["statements"][0]["text"])
+
+    def test_live_evidence_retains_missing_records_and_never_invents_success(self):
+        calls = [
+            {
+                "tool": "get_records",
+                "status": "succeeded",
+                "arguments": {"categories": ["repayment_history", "weather"]},
+                "result": {"groups": [{"category": "repayment_history", "status": "unavailable"}]},
+            }
+        ]
+        self.assertEqual(
+            [r["status"] for r in evidence_progress(calls)], ["Unavailable", "No result recorded"]
+        )
+        calls.append(
+            {"tool": "get_records", "status": "running", "arguments": {"categories": ["weather"]}}
+        )
+        self.assertEqual(evidence_progress(calls)[1]["status"], "Checking")
+        calls[-1]["status"] = "failed"
+        self.assertEqual(evidence_progress(calls)[1]["status"], "Read failed")
+
+    def test_readiness_does_not_hide_source_questions_behind_positive_cashflow(self):
+        snapshot = {
+            "institution": {"review": {"status": "checks_satisfied", "questions": []}},
+            "calculation": {
+                "comparison": {
+                    "baseline": {
+                        "cashflow": {"balances": [{"amount": "0"}], "cash_after_repayment": "0"}
+                    }
+                }
+            },
+            "weather": {"review": {"questions": ["Confirm seasonal coverage"]}},
+        }
+        result = review_summary(snapshot)["readiness"]
+        self.assertEqual(result["clear"], 2)
+        self.assertEqual(result["label"], "Further review needed")
+        snapshot["weather"]["review"]["questions"] = []
+        self.assertEqual(review_summary(snapshot)["readiness"]["clear"], 3)
+        snapshot.pop("institution")
+        self.assertEqual(
+            review_summary(snapshot)["readiness"]["rows"][0]["status"], "Evidence needed"
+        )
+
     def test_review_status_never_represents_advisory_acceptance_as_lending_approval(self):
         context = {
             "current": True,
@@ -126,6 +189,42 @@ class SummaryTests(SimpleTestCase):
 class WalkthroughTests(TransactionTestCase):
     setUp = fixtures.ApplicationTests.setUp
     save = fixtures.ApplicationTests.save
+
+    def test_saved_inventory_distinguishes_unknown_zero_and_supplied_assumptions(self):
+        saved = self.save({**fixtures.intake_data(), "opening_cash": "0"})
+        page = self.client.get(reverse("application-intake", args=[saved.application_id]))
+        self.assertContains(page, "A saved case is enough to start")
+        self.assertContains(page, "Institution file · Not linked")
+        groups = page.context["evidence_inventory"]
+        opening = next(
+            f for f in groups[0]["facts"] if f["label"] == "Available opening cash (KSh)"
+        )
+        self.assertEqual(opening["value"], 0)
+        self.assertEqual(groups[1]["status"], "Needs information")
+        self.assertTrue(any(f["value"] is None for f in groups[1]["facts"]))
+
+    def test_real_recorded_institution_outcomes_drive_readiness(self):
+        for member, expected in (
+            ("DEMO-001", "Clear in supplied file"),
+            ("DEMO-002", "Officer review needed"),
+            ("DEMO-003", "Evidence needed"),
+        ):
+            with self.subTest(member=member):
+                saved = self.save(
+                    {**fixtures.intake_data(complete=True), "institution_record_set": member}
+                )
+                details = fixtures.ApplicationTests.investigate(self, saved)
+                snapshot = json.loads(Draft.objects.get(pk=details["draft_id"]).snapshot_json)
+                summary = review_summary(snapshot)
+                readiness = summary["readiness"]
+                self.assertEqual(readiness["rows"][0]["status"], expected)
+                if member != "DEMO-001":
+                    self.assertLess(readiness["clear"], readiness["total"])
+                    self.assertIsNone(summary["cash_after"])
+                    self.assertEqual(readiness["label"], "Further review needed")
+                page = self.client.get(reverse("saved-draft", args=[details["draft_id"]]))
+                self.assertContains(page, "Evidence readiness")
+                self.assertContains(page, expected)
 
     def test_signed_start_retry_reuses_run_and_forgery_cannot_start(self):
         saved = self.save()

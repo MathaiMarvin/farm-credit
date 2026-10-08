@@ -4,9 +4,6 @@ from decimal import Decimal
 from django import forms
 
 from farmcredit.adapters.institution_demo import MEMBER_CHOICES
-from farmcredit.adapters.market_hdx import MARKET_CHOICES
-from farmcredit.adapters.market_kamis import MARKET_CHOICES as KAMIS_CHOICES
-from farmcredit.adapters.weather_mcp import WEATHER_CHOICES
 
 
 class ScenarioForm(forms.Form):
@@ -45,23 +42,23 @@ class ScenarioForm(forms.Form):
 
 
 class ApplicationForm(forms.Form):
-    weather_reference = forms.ChoiceField(
+    weather_reference = forms.CharField(
+        max_length=200,
         label="Weather reference",
         required=False,
-        choices=(("", "No weather reference selected"), *WEATHER_CHOICES),
-        help_text="Select only when this reference is relevant. City-level model forecasts cannot establish exact farm conditions or predict the whole crop season.",
+        help_text="Enter a Kenyan town, for example Kisumu or Eldoret. The agent checks the resolved location before using a seven-day forecast; ambiguous places need clarification. This is not a seasonal yield forecast.",
     )
-    kamis_market_reference = forms.ChoiceField(
+    kamis_market_reference = forms.CharField(
+        max_length=200,
         label="Additional KAMIS reference",
         required=False,
-        choices=(("", "No KAMIS reference selected"), *KAMIS_CHOICES),
-        help_text="Separate public dry-maize quotation; reuse licence unverified. No price is substituted if the selected market has no matching quote.",
+        help_text="Enter the exact market name used by KAMIS, for example Ahero in Kisumu county. The agent matches the recorded crop and market and preserves the variety, grade and price basis.",
     )
-    market_reference = forms.ChoiceField(
+    market_reference = forms.CharField(
+        max_length=200,
         label="Market price reference",
         required=False,
-        choices=(("", "No reference market selected"), *MARKET_CHOICES),
-        help_text="Historical wholesale context, not a buyer offer or farm-gate forecast. Retrieval occurs when you investigate; the assumed sale price stays unchanged.",
+        help_text="Optional WFP/HDX market name, for example Kisumu. The agent looks for the recorded crop and market; missing coverage stays missing. Historical wholesale context does not replace a buyer offer.",
     )
     institution_record_set = forms.ChoiceField(
         label="Institution file",
@@ -73,8 +70,34 @@ class ApplicationForm(forms.Form):
     farm = forms.CharField(label="Farm / plot reference", max_length=200, required=False)
     location = forms.CharField(label="Farm location", max_length=200, required=False)
     season = forms.CharField(label="Season", max_length=100, required=False)
-    crop = forms.ChoiceField(
-        choices=[("maize", "Maize"), ("other", "Other — unsupported for calculation")]
+    crop = forms.CharField(label="Crop or enterprise", max_length=100)
+    production_pattern = forms.ChoiceField(
+        label="Production and sale pattern",
+        required=False,
+        choices=[
+            ("", "Not yet established"),
+            ("single_harvest", "One harvest, sold by weight"),
+            ("recurring", "Repeated sales, livestock or several enterprises"),
+        ],
+        help_text="Choose the pattern that fits the household. The current calculator models one harvest in kilograms; other patterns can be investigated but need a suitable cash-flow model.",
+    )
+    cooperative_name = forms.CharField(
+        label="Cooperative or lender",
+        max_length=200,
+        required=False,
+        help_text="Name the organisation handling this application. Naming it does not connect its records or apply a lending policy.",
+    )
+    kamis_classification = forms.CharField(
+        label="KAMIS variety / classification",
+        max_length=100,
+        required=False,
+        help_text="If the market lists several varieties, enter the matching classification. Leave blank if unknown; the agent will show which choices need clarification rather than choose a price for you.",
+    )
+    kamis_county = forms.CharField(
+        label="KAMIS market county",
+        max_length=100,
+        required=False,
+        help_text="County where the selected market is located, for example Kisumu. It must match KAMIS’s county catalogue.",
     )
     area_hectares = forms.DecimalField(
         label="Plot area (hectares)",
@@ -145,6 +168,21 @@ class ApplicationForm(forms.Form):
                     label=label, required=False, min_value=0, max_digits=14, decimal_places=2
                 )
             )
+        from farmcredit.interfaces.web.intake_guidance import FIELD_HELP
+
+        for name, help_text in FIELD_HELP.items():
+            self.fields[name].help_text = help_text
+        for field in self.fields.values():
+            if isinstance(field, forms.DecimalField):
+                field.widget.attrs.update(inputmode="decimal", step="0.01")
+        self.fields[
+            "schedule"
+        ].help_text += " Example: payment-1, 2027-09-30, 22000.00. This means KSh 22,000 due on 30 September 2027."
+        self.fields[
+            "cash_records"
+        ].help_text += (
+            " Example: food-1, 2027-07-01, -3000.00. This means KSh 3,000 spent on 1 July 2027."
+        )
         # Display neutral wording without changing unchanged saved evidence on POST.
         from farmcredit.interfaces.web.presentation import display_text
 
@@ -159,6 +197,10 @@ class ApplicationForm(forms.Form):
         self.order_fields(
             [
                 "farmer",
+                "cooperative_name",
+                "production_pattern",
+                "kamis_county",
+                "kamis_classification",
                 "institution_record_set",
                 "farm",
                 "location",
@@ -188,6 +230,8 @@ class ApplicationForm(forms.Form):
         from farmcredit.application.intake import intake_inputs
 
         data = super().clean()
+        if "production_pattern" not in self.data:
+            data["production_pattern"] = "single_harvest"
         from farmcredit.interfaces.web.presentation import display_text
 
         for name, original in self._original_text.items():

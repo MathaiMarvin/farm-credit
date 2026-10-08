@@ -7,7 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#060f40">
   <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
-  <title>{% block title %}Household FC-001{% endblock %} · FarmCredit</title>
+  <title>{% block title %}Applications{% endblock %} · FarmCredit</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{% asset_url 'farmcredit/workspace.css' %}">
   <script src="{% asset_url 'farmcredit/vendor/htmx.min.js' %}" defer></script>
@@ -18,20 +18,18 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <aside class="sidebar" aria-label="Workspace navigation">
     <a class="brand" href="{% url 'applications' %}"><span class="brand-mark" aria-hidden="true">f</span>farmcredit<span class="brand-dot">.</span></a>
-    <div class="workspace-name"><span class="avatar" aria-hidden="true">FC</span><div>Demo cooperative<small>Farmer advisory</small></div></div>
+    <div class="workspace-name"><span class="avatar" aria-hidden="true">FC</span><div>FarmCredit workspace<small>Farmer advisory</small></div></div>
     <nav aria-label="Workspace sections">
       <a href="{% url 'applications' %}"{% if saved or run.application_id or draft.application_id or request.resolver_match.url_name == 'applications' or request.resolver_match.url_name == 'guided-demo' or request.resolver_match.url_name == 'application-new' %} class="selected" aria-current="page"{% endif %}>Applications</a>
-      <a href="{% url 'workspace' %}"{% if request.resolver_match.url_name == 'workspace' %} class="selected" aria-current="page"{% endif %}>Household case</a>
-      <a href="{% url 'assessment-history' %}"{% if request.resolver_match.url_name == 'assessment-history' or request.resolver_match.url_name == 'saved-assessment' or request.resolver_match.url_name == 'saved-draft' and not draft.application_id or request.resolver_match.url_name == 'review-draft' and not draft.application_id %} class="selected" aria-current="page"{% endif %}>Saved assessments</a>
     </nav>
     <div class="sidebar-foot"><span class="eyebrow">Built for a clearer decision</span><p>Farm records. Visible assumptions. Human judgement.</p><a href="https://github.com/MathaiMarvin/farm-credit">Source code ↗</a></div>
   </aside>
   <div class="main-column">
     <header class="topbar">
-      <span>Demo cooperative <span class="separator">/</span> Farmer advisory</span>
+      <span>FarmCredit workspace <span class="separator">/</span> Farmer advisory</span>
       <div class="account-actions"><span class="badge">Demo</span>
       {% if user.is_authenticated %}<span>{{ user.get_full_name|default:user.username|ui_text }}</span><form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="quiet-button" type="submit">Sign out</button></form>
-      {% else %}<a class="account-link" href="{% url 'login' %}?next={% if request.resolver_match.url_name == 'login' %}{% url 'assessment-history' %}{% else %}{{ request.get_full_path|urlencode }}{% endif %}">Officer sign in</a>{% endif %}</div>
+      {% else %}<a class="account-link" href="{% url 'login' %}?next={% if request.resolver_match.url_name == 'login' %}{% url 'applications' %}{% else %}{{ request.get_full_path|urlencode }}{% endif %}">Officer sign in</a>{% endif %}</div>
     </header>
     <main id="main" tabindex="-1">
       {% block content %}{% endblock %}

@@ -151,6 +151,8 @@ def bind_application_reader(*, officer_id: str, application_id: str) -> BoundCas
             snapshot_institution(
                 saved.snapshot["inputs"].get("institution_record_set") or None,
                 retrieved_at=timezone.now(),
-            ),
+            )
+            if saved.snapshot["inputs"].get("institution_record_set")
+            else None,
         )
     )

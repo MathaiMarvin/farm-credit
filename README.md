@@ -5,8 +5,9 @@ advisory: an agent investigates records, identifies gaps, checks dated repayment
 flow and explains what an officer should review next. A named officer can approve the
 advisory or request changes. **The lender retains the loan decision.**
 
-The current prototype supports maize input financing, one demonstration cooperative,
-and officer-owned applications with seasonal or explicitly supplied instalment
+The current prototype investigates named agricultural enterprises and supports
+single-harvest crop input-financing calculations, supplied institutional example
+files, and officer-owned applications with seasonal or explicitly supplied instalment
 schedules. Uzima Havillah is the proposed workflow context, not a validated partnership.
 See [product scope and workflow](docs/workflow.md) and [architecture](ARCHITECTURE.md).
 
@@ -85,8 +86,8 @@ makes earlier drafts historical and blocks their approval.
 
 **History → Compare with the fixed evidence check → Check saved evidence** runs a
 fixed tool sequence without a model. It can still retrieve selected external evidence.
-**Household case** and the guided repayment calculator are separate deterministic
-explorations; they do not demonstrate autonomous tool selection.
+The guided repayment calculator is a separate deterministic
+exploration; it does not demonstrate autonomous tool selection.
 
 ## Demonstration data and boundaries
 
@@ -134,7 +135,7 @@ weather does not generate a numerical yield adjustment.
 | KAMIS | Bounded public search on `kamis.kilimo.go.ke`; market and commodity must match. Attribution: Kenya Agricultural Market Information System, Ministry of Agriculture. Reuse licence has not been established; do not assume unrestricted redistribution. |
 | Open-Meteo | Uses unchanged Apache-2.0 `open-meteo-mcp==0.2.0` in `tools/weather-mcp`, isolated from the main MCP runtime. City/date requests go to `geocoding-api.open-meteo.com` and `api.open-meteo.com`, without household or loan values. [Weather attribution](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), [API terms](https://open-meteo.com/en/terms). |
 
-The selected Nakuru city reference is not an exact farm coordinate. Its short forecast
+A selected Kenyan town reference is resolved against Open-Meteo’s location service and checked against returned forecast coordinates. It is not an exact farm coordinate. Its short forecast
 cannot establish conditions for the demonstration's 2027 growing season. Live forecasts
 are refused for historical review dates. Network access is required for external
 retrieval and hosted model calls; local software tests use controlled responses.

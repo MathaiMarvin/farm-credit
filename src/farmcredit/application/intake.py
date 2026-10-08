@@ -82,6 +82,10 @@ def intake_inputs(data: dict) -> dict:
             "location",
             "season",
             "crop",
+            "production_pattern",
+            "cooperative_name",
+            "kamis_county",
+            "kamis_classification",
             "area_hectares",
             "available_records",
         )
@@ -90,7 +94,8 @@ def intake_inputs(data: dict) -> dict:
         weather_reference=data.get("weather_reference") or None,
         market_reference=data.get("market_reference") or None,
         kamis_market_reference=data.get("kamis_market_reference") or None,
-        institution="Demo cooperative",
+        institution=data.get("cooperative_name")
+        or ("Demo cooperative" if data.get("institution_record_set") else None),
         institution_record_set=data.get("institution_record_set") or None,
         synthetic=True,
         financing_method="supplier",
@@ -165,7 +170,9 @@ def intake_label(field: str) -> str:
         location="Farm location",
         season="Season",
         area_hectares="Plot area",
-        crop="Crop",
+        crop="Crop or enterprise",
+        production_pattern="Production and sale pattern",
+        institution_record_set="Institution policy and records",
     )
     labels.update(
         {

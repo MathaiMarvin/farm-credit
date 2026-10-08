@@ -17,8 +17,15 @@ roles and intended-user approval arrangement have not been validated. The househ
 is the beneficiary; cooperatives, SACCOs and microfinance institutions are potential
 record providers, not interchangeable systems or confirmed partners.
 
-The prototype supports maize input financing, one demonstration cooperative and
-applications owned by their creating officer. It accepts incomplete intake and
+The prototype accepts named crops and enterprises, cooperative names and Kenyan
+market/weather locations. The deterministic calculator supports one harvest sold in
+kilograms with supplied financing terms; recurring sales, livestock and mixed
+enterprises require an appropriate cash-flow model and remain evidence requests.
+Applications are owned by their creating officer. Cooperative naming does not add
+institution-wide access, a provider connection or a lender policy; supplied
+institutional files remain the available record adapter. Without a linked file, no
+demonstration policy is attached; the institution’s own policy and records must be
+obtained before a financial assessment. It accepts incomplete intake and
 explicit seasonal or instalment repayment schedules. The linked institution file is
 selected explicitly; a household's name never guesses the match.
 
@@ -37,6 +44,13 @@ Do not imply those actions occurred when responding to an unsupported request.
 
 ## Officer journey
 
+Applications is the single primary navigation destination. The site root and the
+old saved-assessment list redirect there. The earlier shared household calculator,
+assessment detail, save and review web endpoints are retired: they expose no stored
+records and accept no writes. Historical records remain intact. Saved applications,
+findings and review history remain available within the owning officer's application;
+creating another officer account does not grant access to those applications.
+
 1. **Meet the case.** Sign-in opens Applications unless an explicit return destination
    was requested. The case preview explains the household's request, the officer's
    role and the value of investigation. Optional cards explain the records. Opening
@@ -54,10 +68,26 @@ Do not imply those actions occurred when responding to an unsupported request.
    evidence. Approve the exact advisory or request changes with a reason. The UI
    confirms the saved reviewer, time and outcome. An evidence request has its own
    approval label. None of these states means a loan was approved or declined.
-6. **Continue.** Follow-ups use the previous completed model response on the same
+6. **Continue.** Each open question offers “Answer this”, which adds its context to
+   the visible composer without discarding a typed answer. Include source and date.
+   Chat answers remain officer-provided claims; changing calculation inputs requires
+   a saved application version. While a run is active, the officer can draft the next
+   request in the same tab. It is restored after completion, never sent automatically,
+   and does not interrupt or steer the active model call. Follow-ups use the previous
+   completed model response on the same
    application version as context, not fresh evidence. Each follow-up is another
    investigation. Change facts through Application details and save a new version.
    Older drafts and decisions remain readable but cannot be approved as current.
+
+New application intake groups household, harvest, financing, cash, sources and
+optional evidence references into expandable sections, with a definition beside
+each field. Unknown amounts stay blank; zero is an explicit value. Save and return
+later confirms the save in Applications, where Continue editing reopens the saved
+facts. Save and open agent workspace saves without inference; Send to agent remains
+the explicit handoff. Unsaved edits trigger a browser departure warning. Field
+errors retain entered values and open the affected section, with linked error
+summaries. This follows Apple's [data-entry guidance](https://developer.apple.com/design/human-interface-guidelines/entering-data)
+through progressive disclosure, visible labels and appropriate input types.
 
 The latest eight requests appear in the conversation; older runs remain in History.
 Case details and history open on demand, with Close, Escape and focus restoration.
@@ -106,6 +136,19 @@ The three built-in institutional files share the same cash-flow assumptions:
 | Household B / `DEMO-002` | Recorded unresolved arrears | Identify the officer-review requirement; do not claim lending approval |
 | Household C / `DEMO-003` | Missing repayment history | Request the missing evidence rather than inventing history or affordability |
 
+Market queries use the saved crop and location, not a maize/Nakuru default. KAMIS
+resolves published county, market and commodity IDs; a variety/classification can
+narrow ambiguous quotes. Ambiguous prices prompt clarification with the returned
+classifications. HDX matches the exact crop and market. Neither substitutes another
+commodity or treats unavailable coverage as a price. Weather resolves a Kenyan town
+and checks returned coordinates against that reference; ambiguous locations need
+clarification. Historical Nakuru references remain readable.
+
+The agent investigates relevant selected external evidence even when institutional
+records are missing, before saving the evidence request. It explains relevance to
+the enterprise, location, grade and season, names the missing evidence and its likely
+holder, and does not claim access to a cooperative merely because it is named.
+
 Market observations retain date, place, commodity, units and wholesale/retail basis.
 A retrieved quote is not necessarily current or comparable to a farm-gate assumption.
 Weather preserves geography and forecast coverage; it cannot establish a future
@@ -114,9 +157,23 @@ Unavailable evidence remains unavailable, even when a retrieval tool itself succ
 
 ## Interaction and failure behaviour
 
+The saved-case workspace explains that incomplete applications can be investigated.
+Its expandable inventory groups actual saved cash, harvest and loan values, preserving
+unknown values and evidence-basis labels. A linked institution file is not described
+as verified. Live progress lists only requested evidence categories and their recorded
+states; a returned record does not establish suitability.
+
+The finding includes an expandable **evidence readiness** checklist: institutional
+checks satisfied, no dated baseline cash gap, and no recorded open questions. The
+count is a presentation of three recorded review checkpoints, not a credit score,
+calibrated confidence or repayment probability. Any unresolved checkpoint keeps the
+indicator at “Further review needed”; questions from deterministic source reviews
+are included even if the model omits them. It describes that saved finding, not current
+loan approval. Unchecked sources remain unverified.
+
 Use the same Ask → Investigate → Review vocabulary across the workspace and review
-page. Keep the next action clear; reveal source detail and the follow-up composer
-when requested. Preserve keyboard navigation, readable contrast, consistent spacing
+page. Keep the next action clear; reveal source detail on request and keep the
+follow-up composer visible after a finding. Preserve keyboard navigation, readable contrast, consistent spacing
 and reduced-motion preferences. These choices follow Apple's guidance on
 [feedback](https://developer.apple.com/design/human-interface-guidelines/feedback),
 [disclosure](https://developer.apple.com/design/human-interface-guidelines/disclosure-controls)
@@ -155,6 +212,15 @@ seconds, saving a finding with an unresolved evidence question. Provider-reporte
 cost was USD 0.00499742. Earlier attempts included provider and draft-contract
 failures; this successful run is not a reliability benchmark. Raw local traces are
 not release documentation or evidence of intended-user validation.
+
+On 8 October 2026, a live rice case for Ahero, Kisumu, retrieved a Pishori wholesale
+quote dated 6 October and 168 hourly weather forecast records for Kisumu. A bounded
+agent run with no linked institution completed four model/tool calls and saved an
+evidence request for the named institution’s policy and terms, farm inputs, buyer
+agreement and seasonal outlook. No institution policy or financial result was
+invented. Provider-reported cost for that run was USD 0.00261769. This establishes
+one tested non-maize/non-Nakuru path, not universal provider coverage or a reliability
+benchmark. Tool categories are enumerated; review metadata is not a fetchable record.
 
 Remaining product work includes intended-user testing, repeated representative
 agent evaluation, production access/deployment design and source-policy validation.

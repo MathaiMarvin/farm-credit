@@ -32,7 +32,7 @@ class AuthenticatedWebTests(TransactionTestCase):
         self.client.force_login(self.user)
 
 
-@override_settings(ALLOWED_HOSTS=["testserver"])
+@override_settings(ALLOWED_HOSTS=["testserver"], ROOT_URLCONF="legacy_urls")
 class WorkspaceTests(AuthenticatedWebTests):
     def test_packaged_assets_are_available(self):
         for asset in ("workspace.css", "workspace.js", "vendor/htmx.min.js", "vendor/htmx.LICENSE"):
@@ -293,7 +293,7 @@ class WorkspaceTests(AuthenticatedWebTests):
         self.assertNotContains(response, 'id="repayment-positions"')
 
 
-@override_settings(ALLOWED_HOSTS=["testserver"])
+@override_settings(ALLOWED_HOSTS=["testserver"], ROOT_URLCONF="legacy_urls")
 class SavedAssessmentWebTests(AuthenticatedWebTests):
     def calculate(self, **changes):
         import html
@@ -461,7 +461,9 @@ class SavedAssessmentWebTests(AuthenticatedWebTests):
 
 
 @override_settings(
-    ALLOWED_HOSTS=["testserver"], PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"]
+    ROOT_URLCONF="legacy_urls",
+    ALLOWED_HOSTS=["testserver"],
+    PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"],
 )
 class OfficerReviewWebTests(AuthenticatedWebTests):
     def setUp(self):
@@ -677,7 +679,7 @@ class OfficerReviewWebTests(AuthenticatedWebTests):
         )
 
 
-@override_settings(ALLOWED_HOSTS=["testserver"])
+@override_settings(ALLOWED_HOSTS=["testserver"], ROOT_URLCONF="legacy_urls")
 class WorkspaceAccessTests(AuthenticatedWebTests):
     def test_anonymous_routes_cannot_read_or_write_case_data(self):
         from uuid import uuid4
